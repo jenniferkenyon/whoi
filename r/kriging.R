@@ -38,16 +38,18 @@ options(digits=22)
 options(max.print=999999)
 
 # Important notes on Data Wrangling:
-# (0) All commas and blanks replaced with .
+# (0) All commas and blanks replaced with nd.
 # (1) Depth: Bottom at (-49.33,2.50) and (-49.17,2.08) were taken to be at those depths given by: https://maps.ngdc.noaa.gov/viewers/bathymetry/
 # (2) Depth: Surface was taken to be 3 m
-# (3) Depth: All X_Y data was taken to be nd. This needs to be fixed. 
+# (3) Depth: All X_Y data was taken to be greatest value, Y. 
+# (3.5) Slurp and Slurp_estimated taken to be 100m per Buesseler correspondence. 
 # (4) Lat: TT043 station lat of , changed to nd
 # (5) Lon: #VALUE replaced with nd
-# (6) TotTh234: #DIV/0! replaced with nd
+# (6) TotTh234 and uncert totth234: #DIV/0! replaced with nd
+# QUESTION: Uranium has X-Y values... how to deal with 
 
 # Import all data from Excel:
-th234_data_all <- read_excel("data/merged_th234_data_220720.xlsx", 
+th234_data_all <- read_excel("data/th234_data_220720.xlsx", 
                              sheet = "metadata&data", na = "nd")
 
 # Import only Pacific Ocean data:
@@ -55,25 +57,28 @@ th234_pacific <- th234_data_all[which(th234_data_all$Ocean == "Pacific Ocean"),]
 th234_pacific <- rbind(th234_pacific, th234_data_all[which(th234_data_all$Ocean == "Pacifc Ocean"),])
 th234_pacific <- rbind(th234_pacific, th234_data_all[which(th234_data_all$Ocean == "Pacific Ocean & Artic Ocean")])
 
-# Remove NA from data:
+# Remove NA from data (may want to use na.omit eventually on th234_pacific):
 th234_pacific <- th234_pacific[-which(is.na(th234_pacific$lat_decimal_degrees)), ] # latitude
 th234_pacific <- th234_pacific[-which(is.na(th234_pacific$lon_decimal_degrees)), ] # longitude
 th234_pacific <- th234_pacific[-which(is.na(th234_pacific$`total_234Th(dpm/L)`)), ] # total Th234
+th234_pacific <- th234_pacific[-which(is.na(th234_pacific$`part_234Th_small(dpm/L)`)), ] # total Th234
 th234_pacific <- th234_pacific[-which(is.na(th234_pacific$`238U(dpm/L)`)), ] # total U238
 th234_pacific <- th234_pacific[-which(is.na(th234_pacific$depth_m)), ] # depth of each measurement
 
 # Variogram -------------------------------------------------------------------
-# Convert to SPDF (x + y + z):
-coordinates(th234_pacific) <- ~ lat_decimal_degrees + lon_decimal_degrees + depth_m
+# Convert to SPDF:
+coordinates(th234_pacific) <- c("lat_decimal_degrees", "lon_decimal_degrees", "depth_m")
   
 # Calculate variogram:
-th234 <- th234_pacific$`total_234Th(dpm/L)`
-th234.vgm <- variogram(th234~1, th234_pacific)
+th234 <- th234_pacific$`part_234Th_small(dpm/L)`
+th234.vgm <- variogram(th234 ~ lat_decimal_degrees + lon_decimal_degrees + depth_m, th234_pacific) # in a regression, y = ax + b. y is the response vector and x is the regressor (independent variable).
+
+# QUESTION: ~1 means assume constant trend. Is this correct?
 
 # Fit a model to variogram:
-th234.fit <- autofitVariogram(th234~1,
+th234.fit <- autofitVariogram(th234 ~ lat_decimal_degrees + lon_decimal_degrees + depth_m,
                               th234_pacific,
-                              model = c("Gau"),
+                              model = c("Sph"),
                               kappa = c(0.05, seq(0.2, 2, 0.1), 5, 10),
                               fix.values = c(NA, NA, NA),
                               verbose = FALSE,
