@@ -13,6 +13,8 @@ suppressPackageStartupMessages({
   library(tidyverse)
   library(raster) 
   library(lwgeom)
+  library(stringr)
+  library(maps)
   library(rnaturalearth)
   library(rnaturalearthdata)
   library(rgdal) # working with shape files and geospatial data
@@ -25,6 +27,7 @@ suppressPackageStartupMessages({
   library(scales) # for using comma
   library(magrittr)
   library(gridExtra)
+  library(plotly)
 })
 
 # Data Wrangling --------------------------------------------------------------
@@ -57,36 +60,92 @@ th234_pacific <- th234_data_all[which(th234_data_all$Ocean == "Pacific Ocean"),]
 th234_pacific <- rbind(th234_pacific, th234_data_all[which(th234_data_all$Ocean == "Pacifc Ocean"),])
 th234_pacific <- rbind(th234_pacific, th234_data_all[which(th234_data_all$Ocean == "Pacific Ocean & Artic Ocean")])
 
-# Remove NA from data (may want to use na.omit eventually on th234_pacific):
+# Make Th_tot data ------------------------------------------------------------
+unknown <- which(is.na(th234_pacific$`total_234Th(dpm/L)`) == TRUE)
+unknown_before <- length(unknown)
+
+i = 1
+for (i in 1:dim(th234_pacific)[1]) {
+  if (is.na(th234_pacific$`total_234Th(dpm/L)`[i]) == TRUE) {
+    if (is.na(th234_pacific$`part_234Th_small(dpm/L)`[i]) == FALSE) {
+      if (is.na(th234_pacific$`part_234Th_large(dpm/L)`[i]) == FALSE) {
+        if (is.na(th234_pacific$`diss_234Th(dpm/L)`[i]) == FALSE) {
+          th234_pacific$`total_234Th(dpm/L)`[i] <- th234_pacific$`part_234Th_small(dpm/L)`[i] +
+            th234_pacific$`part_234Th_large(dpm/L)`[i] +
+            th234_pacific$`diss_234Th(dpm/L)`[i]
+        }
+      }
+    }
+  }
+}
+
+unknown <- which(is.na(th234_pacific$`total_234Th(dpm/L)`) == TRUE)
+unknown_after <- length(unknown)
+
+change_th234_d <- unknown_before - unknown_after
+
+# Remove NA from data (may want to use na.omit eventually on th234_pacific) ---
 th234_pacific <- th234_pacific[-which(is.na(th234_pacific$lat_decimal_degrees)), ] # latitude
 th234_pacific <- th234_pacific[-which(is.na(th234_pacific$lon_decimal_degrees)), ] # longitude
 th234_pacific <- th234_pacific[-which(is.na(th234_pacific$`total_234Th(dpm/L)`)), ] # total Th234
-th234_pacific <- th234_pacific[-which(is.na(th234_pacific$`part_234Th_small(dpm/L)`)), ] # total Th234
 th234_pacific <- th234_pacific[-which(is.na(th234_pacific$`238U(dpm/L)`)), ] # total U238
 th234_pacific <- th234_pacific[-which(is.na(th234_pacific$depth_m)), ] # depth of each measurement
+th234_pacific <- th234_pacific[-which(th234_pacific$`total_234Th(dpm/L)` > 10), ] # th234_tot that are too big
+th234_pacific <- th234_pacific[-which(th234_pacific$lon_decimal_degrees > 0), ] # long in region we are interested in
+
+# Make data for total original locations:
+th234_locations_total <- th234_data_all[-which(is.na(th234_data_all$lat_decimal_degrees)), ] # get rid of na in latitude
+th234_locations_total <- th234_data_all[-which(is.na(th234_data_all$lon_decimal_degrees)), ] # get rid of na in longitude
+th234_locations_total <- th234_locations_total[-which(abs(th234_locations_total$lat_decimal_degrees) > 90), ] # proper latitude
+th234_locations_total <- th234_locations_total[-which(abs(th234_locations_total$lon_decimal_degrees) > 180), ] # proper longitude
+
+# Make data frames:
+th234_locations_old <- data.frame(LAT = th234_locations_total$lat_decimal_degrees, LON = th234_locations_total$lon_decimal_degrees)
+th234_locations_new <- data.frame(LAT = th234_pacific$lat_decimal_degrees, LON = th234_pacific$lon_decimal_degrees)
+
+# Plot data that we have ------------------------------------------------------
+world <- map_data("world")
+worldplot <- ggplot() +
+  geom_polygon(data = world, aes(x = long, y = lat, group = group)) + 
+  coord_fixed(1.3) + geom_point(data = th234_locations_old, aes(x = LON, y = LAT, color = 'Old Th-234 Stations'), size = 1, stroke = 0, shape = 16) + 
+  geom_point(data = th234_locations_new, aes(x = LON, y = LAT, color = 'New Th-234 Stations'), size = 1, stroke = 0, shape = 16) + 
+  labs(title='Global Th-234 Stations', x = "Longitude", y = "Latitude", color = "Th-234 Station Types") + 
+  theme(plot.title=element_text(size=10, face="bold"), 
+        axis.text.x=element_text(size=10), 
+        axis.text.y=element_text(size=10),
+        axis.title.x=element_text(size=10, face="bold"),
+        axis.title.y=element_text(size=10, face="bold")) 
+print(worldplot)
+dev.copy(pdf, 'figures/th234_tot/th234_global_sites.pdf')
+dev.off()
 
 # Variogram -------------------------------------------------------------------
 # Convert to SPDF:
-coordinates(th234_pacific) <- c("lat_decimal_degrees", "lon_decimal_degrees", "depth_m")
+coordinates(th234_pacific) <- ~ lat_decimal_degrees + lon_decimal_degrees + depth_m # c("lat_decimal_degrees", "lon_decimal_degrees", "depth_m")
   
 # Calculate variogram:
-th234 <- th234_pacific$`part_234Th_small(dpm/L)`
+th234 <- th234_pacific$`total_234Th(dpm/L)`
 th234.vgm <- variogram(th234 ~ lat_decimal_degrees + lon_decimal_degrees + depth_m, th234_pacific) # in a regression, y = ax + b. y is the response vector and x is the regressor (independent variable).
-
-# QUESTION: ~1 means assume constant trend. Is this correct?
 
 # Fit a model to variogram:
 th234.fit <- autofitVariogram(th234 ~ lat_decimal_degrees + lon_decimal_degrees + depth_m,
                               th234_pacific,
-                              model = c("Sph"),
+                              model = c("Sph", "Exp", "Gau", "Ste", "Mat"),
                               kappa = c(0.05, seq(0.2, 2, 0.1), 5, 10),
                               fix.values = c(NA, NA, NA),
-                              verbose = FALSE,
+                              verbose = TRUE,
                               GLS.model = NA,
                               start_vals = c(NA,NA,NA))
 
 # Plot model and variogram:
-plot(th234.vgm, th234.fit$var_model, main = "Fitted variogram")
+plot(th234.vgm, 
+     th234.fit$var_model, 
+     main = "Fitted variogram",
+     ylab = "Semivariance",
+     xlab = "Distance"
+     )
+dev.copy(pdf, 'figures/th234_tot/fitted_variogram.pdf')
+dev.off()
 
 # Prediction Grid - Longhurst -------------------------------------------------
 # Shape files are from: https://www.marineregions.org/downloads.php
@@ -131,11 +190,48 @@ regions <- rbind(regions, chil)
 # Generate points ever 2.8 degrees:
 pts <- spsample(regions, cellsize=c(2.8,2.8), type="regular")
 
-# Plot pacific:
-if (plotting == 1) {
-  plot(regions) ; points(pts, col='red', pch=3, cex=0.5)
-}
+# Plot pacific regions --------------------------------------------------------
+# Associate data with the polygons each represents (the numbers all the way to the left originally):
+regions@data$id <- rownames(regions@data)
+region_points <- fortify(regions, region = "id") # make a data.frame from an SPDF sorted by each polygon (a total of 9 here)
+longhurst_df <- merge(region_points, regions@data, by = "id") # merge all these into one long data.frame with coordinates and polygon information
 
+# Associate data with points:
+interp_points <- data.frame(LAT = pts@coords[,2], LON = pts@coords[,1])
+
+# Make the plot:
+ggRegions <- ggplot() +
+             geom_polygon(data = world, aes(x = long, y = lat, group = group)) + 
+             geom_polygon(data = longhurst_df, aes(x=long, y=lat, group = group, fill = 'Longhurst Regions')) + 
+             geom_point(data = interp_points, aes(x=LON, y=LAT, fill = 'Interpolation Points'), size = 0.75, stroke = 0, shape = 16, color='red') +
+             coord_fixed(1.3) + 
+             labs(title='Interpolation Region', x = "Longitude", y = "Latitude", fill = "") + 
+             theme(plot.title=element_text(size=10, face="bold"), 
+                   axis.text.x=element_text(size=10), 
+                   axis.text.y=element_text(size=10),
+                   axis.title.x=element_text(size=10, face="bold"),
+                   axis.title.y=element_text(size=10, face="bold")) 
+print(ggRegions)
+dev.copy(pdf, 'figures/kriging/interpolation_region.pdf')
+dev.off()
+
+# Plot queuing vs data points:
+ggPoints <- ggplot() + 
+            geom_polygon(data = world, aes(x = long, y = lat, group = group)) + 
+            geom_point(data = interp_points, aes(x=LON, y=LAT, fill = 'Interpolation Points'), size = 0.75, stroke = 0, shape = 16, color='red') +
+            geom_point(data = th234_locations_new, aes(x = LON, y = LAT, fill = 'New Th-234 Stations'), size = 1, stroke = 0, shape = 16, color='lightblue') + 
+            coord_fixed(1.3) + 
+            labs(title='Prediction Grid and Th-234 Stations', x = "Longitude", y = "Latitude", fill = "") + 
+            theme(plot.title=element_text(size=10, face="bold"), 
+                  axis.text.x=element_text(size=10), 
+                  axis.text.y=element_text(size=10),
+                  axis.title.x=element_text(size=10, face="bold"),
+                  axis.title.y=element_text(size=10, face="bold")) 
+print(ggPoints)
+dev.copy(pdf, 'figures/kriging/interpolation_prediction.pdf')
+dev.off()
+
+# Make prediction grid --------------------------------------------------------
 # Make depth bins:
 watercolumn = array(dim=34)
 for (i in 1:34) {
@@ -168,12 +264,33 @@ data = data.frame(ID = 1:(k-1))
 th234_pacific_1 <- SpatialPoints(pacific)
 pacific_234th <- SpatialPointsDataFrame(th234_pacific_1, data)
 
-# Plotting new pacific SPDF:
-if (plotting == 1) {
-  plot(pacific_234th)
-}
+# Plot Prediction Points:
+prediction <- plot_ly(x=pacific_234th@coords[,2], y=pacific_234th@coords[,1], z=-pacific_234th@coords[,3], type='scatter3d', mode="markers", color=pacific_234th@coords[,3])
+prediction <- prediction %>% layout(title = 'Prediction Grid Points',
+                                    xaxis = list(title = 'Longitude'), 
+                                    yaxis = list(title = 'Latitude'))
+print(prediction)
 
 # Kriging ---------------------------------------------------------------------
-th234.kriged <- krige(th234~1, th234_pacific, pacific_234th, model=th234.fit$var_model)
+# Make new SPDF with only the data I need:
+
+
+# Krige:
+# th234_total_kriged <- autoKrige(th234 ~ th234_pacific@coords[,1] + th234_pacific@coords[,2] + th234_pacific@coords[,3], 
+#                                 th234_pacific, 
+#                                 pacific_234th, 
+#                                 block = 30, 
+#                                 model = c("Sph", "Exp", "Gau", "Ste"), 
+#                                 kappa = c(0.05, seq(0.2, 2, 0.1), 5, 10), 
+#                                 fix.values = c(NA,NA,NA), 
+#                                 remove_duplicates = TRUE, 
+#                                 verbose = FALSE, 
+#                                 GLS.model = NA)
+
+th234_total_kriged <- krige(th234 ~ th234_pacific@coords[,1] + th234_pacific@coords[,2] + th234_pacific@coords[,3], 
+                            th234_pacific, 
+                            pacific_234th, 
+                            model = th234.fit$var_model, 
+                            nmax = 30)
 
 

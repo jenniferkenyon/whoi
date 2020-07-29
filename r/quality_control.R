@@ -137,13 +137,13 @@ for (j in 1:j_max) {
 
 # To determine which are more than 5 dpm/L ------------------------------------
 # The following values are unrealistic: 6.000000000000000000000, 13.039999999999999147349, 5.450000000000000177636, 398.000000000000000000000
-th234_total[which(th234_total > 5)]
+bad_values <- th234_total[which(th234_total > 5)]
 
 # These names for the first two are: "cruise 73 & cruise 86-1" and "VERTEX 2, VERTEX 3 and VERTEX 4"
-th234_pacific$Cruise_ID[which(th234_pacific$`total_234Th(dpm/L)` > 5)] 
+bad_names1 <- th234_pacific$Cruise_ID[which(th234_pacific$`total_234Th(dpm/L)` > 5)] 
 
 # These names for the second two are: "Funka Bay of Hokkaido, Japan" and Funka Bay" 
-th234_pacific$Region[which(th234_pacific$`total_234Th(dpm/L)` > 5)]
+bad_names2 <- th234_pacific$Region[which(th234_pacific$`total_234Th(dpm/L)` > 5)]
 
 
 
