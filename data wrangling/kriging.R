@@ -48,8 +48,10 @@ th234_data_all <- read_excel("data/th234_data_220720.xlsx",
 
 # Import only Pacific Ocean data:
 th234_pacific <- th234_data_all[which(th234_data_all$Ocean == "Pacific Ocean"),]
-th234_pacific <- rbind(th234_pacific, th234_data_all[which(th234_data_all$Ocean == "Pacifc Ocean"),])
-th234_pacific <- rbind(th234_pacific, th234_data_all[which(th234_data_all$Ocean == "Pacific Ocean & Artic Ocean")])
+th234_pacific <- rbind(th234_pacific, 
+                       th234_data_all[which(th234_data_all$Ocean == "Pacifc Ocean"),])
+th234_pacific <- rbind(th234_pacific, 
+                       th234_data_all[which(th234_data_all$Ocean == "Pacific Ocean & Artic Ocean")])
 
 # Make Th_tot data ------------------------------------------------------------
 unknown <- which(is.na(th234_pacific$`total_234Th(dpm/L)`) == TRUE)
@@ -89,21 +91,42 @@ th234_locations_total <- th234_locations_total[-which(abs(th234_locations_total$
 th234_locations_total <- th234_locations_total[-which(abs(th234_locations_total$lon_decimal_degrees) > 180), ] # proper longitude
 
 # Make data frames:
-th234_locations_old <- data.frame(LAT = th234_locations_total$lat_decimal_degrees, LON = th234_locations_total$lon_decimal_degrees)
-th234_locations_new <- data.frame(LAT = th234_pacific$lat_decimal_degrees, LON = th234_pacific$lon_decimal_degrees)
+th234_locations_old <- data.frame(LAT = th234_locations_total$lat_decimal_degrees, 
+                                  LON = th234_locations_total$lon_decimal_degrees)
+th234_locations_new <- data.frame(LAT = th234_pacific$lat_decimal_degrees, 
+                                  LON = th234_pacific$lon_decimal_degrees)
 
 # Plot data that we have ------------------------------------------------------
 world <- map_data("world")
 worldplot <- ggplot() +
-  geom_polygon(data = world, aes(x = long, y = lat, group = group)) + 
-  coord_fixed(1.3) + geom_point(data = th234_locations_old, aes(x = LON, y = LAT, color = 'Old Th-234 Stations'), size = 1, stroke = 0, shape = 16) + 
-  geom_point(data = th234_locations_new, aes(x = LON, y = LAT, color = 'New Th-234 Stations'), size = 1, stroke = 0, shape = 16) + 
-  labs(title='Global Th-234 Stations', x = "Longitude", y = "Latitude", color = "Th-234 Station Types") + 
-  theme(plot.title=element_text(size=10, face="bold"), 
-        axis.text.x=element_text(size=10), 
-        axis.text.y=element_text(size=10),
-        axis.title.x=element_text(size=10, face="bold"),
-        axis.title.y=element_text(size=10, face="bold")) 
+             geom_polygon(data = world, 
+                          aes(x = long, 
+                              y = lat, 
+                              group = group)) + 
+             coord_fixed(1.3) + 
+             geom_point(data = th234_locations_old, 
+                        aes(x = LON, 
+                            y = LAT, 
+                            color = 'Old Th-234 Stations'),
+                        size = 1, 
+                        stroke = 0, 
+                        shape = 16) + 
+             geom_point(data = th234_locations_new, 
+                        aes(x = LON, 
+                            y = LAT, 
+                            color = 'New Th-234 Stations'), 
+                        size = 1, 
+                        stroke = 0, 
+                        shape = 16) + 
+             labs(title='Global Th-234 Stations', 
+                  x = "Longitude", 
+                  y = "Latitude", 
+                  color = "Th-234 Station Types") + 
+             theme(plot.title=element_text(size=10, face="bold"), 
+                   axis.text.x=element_text(size=10), 
+                   axis.text.y=element_text(size=10),
+                   axis.title.x=element_text(size=10, face="bold"),
+                   axis.title.y=element_text(size=10, face="bold")) 
 print(worldplot)
 # Warning message: Removed 14 rows containing missing values (geom_point). I do not know why. 
 if (plotting == 1) {
@@ -113,7 +136,10 @@ if (plotting == 1) {
 
 # Variogram -------------------------------------------------------------------
 # Make only one data column:
-th234_total <- data.frame(TH234_TOT = th234_pacific$`total_234Th(dpm/L)`, LAT = th234_pacific$lat_decimal_degrees, LON = th234_pacific$lon_decimal_degrees, DEPTH = th234_pacific$depth_m )
+th234_total <- data.frame(TH234_TOT = th234_pacific$`total_234Th(dpm/L)`, 
+                          LAT = th234_pacific$lat_decimal_degrees, 
+                          LON = th234_pacific$lon_decimal_degrees, 
+                          DEPTH = th234_pacific$depth_m )
 
 # Convert to SPDF:
 coordinates(th234_total) <- ~ LAT + LON + DEPTH # c("lat_decimal_degrees", "lon_decimal_degrees", "depth_m")
@@ -131,8 +157,15 @@ th234.vgm <- variogram(th234 ~ LAT + LON + DEPTH, th234_total) # in a regression
 # Fit a model to variogram:
 th234.fit <- autofitVariogram(th234 ~ LAT + LON + DEPTH,
                               th234_total,
-                              model = c("Sph", "Exp", "Gau", "Ste", "Mat"),
-                              kappa = c(0.05, seq(0.2, 2, 0.1), 5, 10),
+                              model = c("Sph", 
+                                        "Exp", 
+                                        "Gau", 
+                                        "Ste", 
+                                        "Mat"),
+                              kappa = c(0.05, 
+                                        seq(0.2, 2, 0.1), 
+                                        5, 
+                                        10),
                               fix.values = c(NA, NA, NA),
                               verbose = TRUE,
                               GLS.model = NA,
@@ -207,11 +240,28 @@ interp_points <- data.frame(LAT = pts@coords[,2], LON = pts@coords[,1])
 
 # Make the plot:
 ggRegions <- ggplot() +
-             geom_polygon(data = world, aes(x = long, y = lat, group = group)) + 
-             geom_polygon(data = longhurst_df, aes(x=long, y=lat, group = group, fill = 'Longhurst Regions')) + 
-             geom_point(data = interp_points, aes(x=LON, y=LAT, fill = 'Interpolation Points'), size = 0.75, stroke = 0, shape = 16, color='red') +
+             geom_polygon(data = world, 
+                          aes(x = long, 
+                              y = lat, 
+                              group = group)) + 
+             geom_polygon(data = longhurst_df, 
+                          aes(x=long, 
+                              y=lat, 
+                              group = group, 
+                              fill = 'Longhurst Regions')) + 
+             geom_point(data = interp_points, 
+                        aes(x=LON,
+                            y=LAT, 
+                            fill = 'Interpolation Points'), 
+                        size = 0.75, 
+                        stroke = 0, 
+                        shape = 16, 
+                        color='red') +
              coord_fixed(1.3) + 
-             labs(title='Interpolation Region', x = "Longitude", y = "Latitude", fill = "") + 
+             labs(title='Interpolation Region', 
+                  x = "Longitude", 
+                  y = "Latitude", 
+                  fill = "") + 
              theme(plot.title=element_text(size=10, face="bold"), 
                    axis.text.x=element_text(size=10), 
                    axis.text.y=element_text(size=10),
@@ -225,11 +275,31 @@ if (plotting == 1) {
 
 # Plot queuing vs data points:
 ggPoints <- ggplot() + 
-            geom_polygon(data = world, aes(x = long, y = lat, group = group)) + 
-            geom_point(data = interp_points, aes(x=LON, y=LAT, fill = 'Interpolation Points'), size = 0.75, stroke = 0, shape = 16, color='red') +
-            geom_point(data = th234_locations_new, aes(x = LON, y = LAT, fill = 'New Th-234 Stations'), size = 1, stroke = 0, shape = 16, color='lightblue') + 
+            geom_polygon(data = world, 
+                         aes(x = long, 
+                             y = lat, 
+                             group = group)) + 
+            geom_point(data = interp_points, 
+                       aes(x=LON, 
+                           y=LAT, 
+                           fill = 'Interpolation Points'), 
+                       size = 0.75, 
+                       stroke = 0, 
+                       shape = 16, 
+                       color='red') +
+            geom_point(data = th234_locations_new, 
+                       aes(x = LON, 
+                           y = LAT, 
+                           fill = 'New Th-234 Stations'), 
+                       size = 1, 
+                       stroke = 0, 
+                       shape = 16, 
+                       color='lightblue') + 
             coord_fixed(1.3) + 
-            labs(title='Prediction Grid and Th-234 Stations', x = "Longitude", y = "Latitude", fill = "") + 
+            labs(title='Prediction Grid and Th-234 Stations', 
+                 x = "Longitude", 
+                 y = "Latitude", 
+                 fill = "") + 
             theme(plot.title=element_text(size=10, face="bold"), 
                   axis.text.x=element_text(size=10), 
                   axis.text.y=element_text(size=10),
@@ -277,7 +347,12 @@ pacific_234th <- SpatialPointsDataFrame(th234_pacific_1, data)
 proj4string(pacific_234th) <- CRS("+init=epsg:3857")
 
 # Plot Prediction Points:
-prediction <- plot_ly(x=pacific_234th@coords[,2], y=pacific_234th@coords[,1], z=-pacific_234th@coords[,3], type='scatter3d', mode="markers", color=pacific_234th@coords[,3])
+prediction <- plot_ly(x=pacific_234th@coords[,2], 
+                      y=pacific_234th@coords[,1], 
+                      z=-pacific_234th@coords[,3], 
+                      type='scatter3d', 
+                      mode="markers", 
+                      color=pacific_234th@coords[,3])
 prediction <- prediction %>% layout(title = 'Prediction Grid Points',
                                     xaxis = list(title = 'Longitude'), 
                                     yaxis = list(title = 'Latitude'))
