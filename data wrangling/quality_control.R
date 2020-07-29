@@ -122,13 +122,20 @@ for (j in 1:j_max) {
   names(th234)[1] <- "DEPTH"
   names(th234)[2] <- "TH234_TOTAL"
   # Plot:
-  gg <- ggplot(th234, aes(x=TH234_TOTAL, y=DEPTH)) + geom_point(color='darkblue') + labs(title=names[dataset_num], x='[Th-234] (dpm/L)', y='Depth (m)') +
+  gg <- ggplot(th234, aes(x=TH234_TOTAL, 
+                          y=DEPTH)) + 
+        geom_point(color='darkblue') + 
+        labs(title=names[dataset_num], 
+             x='[Th-234] (dpm/L)', 
+             y='Depth (m)') +
         theme(plot.title=element_text(size=10, face="bold"), 
               axis.text.x=element_text(size=10), 
               axis.text.y=element_text(size=10),
               axis.title.x=element_text(size=10, face="bold"),
               axis.title.y=element_text(size=10, face="bold")) 
-  gg1 <- gg + scale_y_reverse() + scale_x_discrete(limits=c("1","2","3","4"))
+  gg1 <- gg + 
+         scale_y_reverse() + 
+         scale_x_discrete(limits=c("1","2","3","4"))
   print(gg1)
   # For saving:
   dev.copy(pdf, paste0(names[j], ".pdf"))
@@ -145,8 +152,6 @@ bad_names1 <- th234_pacific$Cruise_ID[which(th234_pacific$`total_234Th(dpm/L)` >
 # These names for the second two are: "Funka Bay of Hokkaido, Japan" and Funka Bay" 
 bad_names2 <- th234_pacific$Region[which(th234_pacific$`total_234Th(dpm/L)` > 5)]
 
-
-
-
-
-
+###############################################################################
+#                                 End Program
+###############################################################################
