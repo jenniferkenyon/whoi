@@ -34,23 +34,13 @@ suppressPackageStartupMessages({
 
 # Data Wrangling --------------------------------------------------------------
 # Do you want to plot? 0 for no. 1 for yes. 
-plotting = 1
+plotting = 0
 
 # Data Wrangling --------------------------------------------------------------
 # Turn off scientific notation and set digit and print max:
 options(scipen = 999)
 options(digits=22)
 options(max.print=999999)
-
-# Important notes on Data Wrangling:
-# (0) All commas and blanks replaced with nd.
-# (1) Depth: Bottom at (-49.33,2.50) and (-49.17,2.08) were taken to be at those depths given by: https://maps.ngdc.noaa.gov/viewers/bathymetry/
-# (2) Depth: Surface was taken to be 3 m
-# (3) Depth: All X_Y data was taken to be greatest value, Y. 
-# (3.5) Slurp and Slurp_estimated taken to be 100m per Buesseler correspondence. 
-# (4) Lat: TT043 station lat of , changed to nd
-# (5) Lon: #VALUE replaced with nd
-# (6) TotTh234 and uncert totth234: #DIV/0! replaced with nd
 
 # Import all data from Excel:
 th234_data_all <- read_excel("data/th234_data_220720.xlsx", 
@@ -64,7 +54,6 @@ th234_pacific <- rbind(th234_pacific, th234_data_all[which(th234_data_all$Ocean 
 # Make Th_tot data ------------------------------------------------------------
 unknown <- which(is.na(th234_pacific$`total_234Th(dpm/L)`) == TRUE)
 unknown_before <- length(unknown)
-
 i = 1
 for (i in 1:dim(th234_pacific)[1]) {
   if (is.na(th234_pacific$`total_234Th(dpm/L)`[i]) == TRUE) {
@@ -79,10 +68,9 @@ for (i in 1:dim(th234_pacific)[1]) {
     }
   }
 }
-
+# Did it work?
 unknown <- which(is.na(th234_pacific$`total_234Th(dpm/L)`) == TRUE)
 unknown_after <- length(unknown)
-
 change_th234_d <- unknown_before - unknown_after
 
 # Remove NA from data (may want to use na.omit eventually on th234_pacific) ---
@@ -117,26 +105,32 @@ worldplot <- ggplot() +
         axis.title.x=element_text(size=10, face="bold"),
         axis.title.y=element_text(size=10, face="bold")) 
 print(worldplot)
-dev.copy(pdf, 'figures/th234_tot/th234_global_sites.pdf')
-dev.off()
+# Warning message: Removed 14 rows containing missing values (geom_point). I do not know why. 
+if (plotting == 1) {
+  dev.copy(pdf, 'figures/th234_tot/th234_global_sites.pdf')
+  dev.off()
+}
 
 # Variogram -------------------------------------------------------------------
-# Convert to SPDF:
-coordinates(th234_pacific) <- ~ lat_decimal_degrees + lon_decimal_degrees + depth_m # c("lat_decimal_degrees", "lon_decimal_degrees", "depth_m")
+# Make only one data column:
+th234_total <- data.frame(TH234_TOT = th234_pacific$`total_234Th(dpm/L)`, LAT = th234_pacific$lat_decimal_degrees, LON = th234_pacific$lon_decimal_degrees, DEPTH = th234_pacific$depth_m )
 
-# As (lon,lat), use WGS84 long-lat projection:
-proj4string(th234_pacific) <- CRS("+init=epsg:4326")
+# Convert to SPDF:
+coordinates(th234_total) <- ~ LAT + LON + DEPTH # c("lat_decimal_degrees", "lon_decimal_degrees", "depth_m")
+
+# As (lon,lat), use Web Mercater this is the most common spatial reference system for the entire world:
+proj4string(th234_total) <- CRS("+init=epsg:3857")
 
 # View the stations:
-mapview(th234_pacific)
+mapview(th234_total, map.types = c("Esri.WorldShadedRelief", "OpenStreetMap.DE"))
 
 # Calculate variogram:
-th234 <- th234_pacific$`total_234Th(dpm/L)`
-th234.vgm <- variogram(th234 ~ lat_decimal_degrees + lon_decimal_degrees + depth_m, th234_pacific) # in a regression, y = ax + b. y is the response vector and x is the regressor (independent variable).
+th234 <- th234_total$TH234_TOT
+th234.vgm <- variogram(th234 ~ LAT + LON + DEPTH, th234_total) # in a regression, y = ax + b. y is the response vector and x is the regressor (independent variable).
 
 # Fit a model to variogram:
-th234.fit <- autofitVariogram(th234 ~ lat_decimal_degrees + lon_decimal_degrees + depth_m,
-                              th234_pacific,
+th234.fit <- autofitVariogram(th234 ~ LAT + LON + DEPTH,
+                              th234_total,
                               model = c("Sph", "Exp", "Gau", "Ste", "Mat"),
                               kappa = c(0.05, seq(0.2, 2, 0.1), 5, 10),
                               fix.values = c(NA, NA, NA),
@@ -151,8 +145,10 @@ plot(th234.vgm,
      ylab = "Semivariance",
      xlab = "Distance"
      )
-dev.copy(pdf, 'figures/th234_tot/fitted_variogram.pdf')
-dev.off()
+if (plotting == 1) {
+  dev.copy(pdf, 'figures/th234_tot/fitted_variogram.pdf')
+  dev.off()
+}
 
 # Prediction Grid - Longhurst -------------------------------------------------
 # Shape files are from: https://www.marineregions.org/downloads.php
@@ -194,6 +190,9 @@ regions <- rbind(regions, peqd)
 regions <- rbind(regions, spsg)
 regions <- rbind(regions, chil)
 
+# As (lon,lat), use Web Mercater this is the most common spatial reference system for the entire world:
+regions <- spTransform(regions, CRS("+init=epsg:3857"))
+
 # Generate points ever 2.8 degrees:
 pts <- spsample(regions, cellsize=c(2.8,2.8), type="regular")
 
@@ -219,8 +218,10 @@ ggRegions <- ggplot() +
                    axis.title.x=element_text(size=10, face="bold"),
                    axis.title.y=element_text(size=10, face="bold")) 
 print(ggRegions)
-dev.copy(pdf, 'figures/kriging/interpolation_region.pdf')
-dev.off()
+if (plotting == 1) {
+  dev.copy(pdf, 'figures/kriging/interpolation_region.pdf')
+  dev.off()
+}
 
 # Plot queuing vs data points:
 ggPoints <- ggplot() + 
@@ -235,8 +236,10 @@ ggPoints <- ggplot() +
                   axis.title.x=element_text(size=10, face="bold"),
                   axis.title.y=element_text(size=10, face="bold")) 
 print(ggPoints)
-dev.copy(pdf, 'figures/kriging/interpolation_prediction.pdf')
-dev.off()
+if (plotting == 1) {
+  dev.copy(pdf, 'figures/kriging/interpolation_prediction.pdf')
+  dev.off()
+}
 
 # Make prediction grid --------------------------------------------------------
 # Make depth bins:
@@ -254,7 +257,6 @@ for (i in 1:34) {
 x <- pts@coords[,1]
 y <- pts@coords[,2]
 z <- watercolumn
-
 pacific <- matrix(ncol = 3, nrow = dim(pts@coords)[1]*length(watercolumn))
 k = 1
 for (i in 1:dim(pts@coords)[1]) {
@@ -271,6 +273,9 @@ data = data.frame(ID = 1:dim(pacific)[1])
 th234_pacific_1 <- SpatialPoints(pacific)
 pacific_234th <- SpatialPointsDataFrame(th234_pacific_1, data)
 
+# Use GPS, world-wide reference projection:
+proj4string(pacific_234th) <- CRS("+init=epsg:3857")
+
 # Plot Prediction Points:
 prediction <- plot_ly(x=pacific_234th@coords[,2], y=pacific_234th@coords[,1], z=-pacific_234th@coords[,3], type='scatter3d', mode="markers", color=pacific_234th@coords[,3])
 prediction <- prediction %>% layout(title = 'Prediction Grid Points',
@@ -279,25 +284,23 @@ prediction <- prediction %>% layout(title = 'Prediction Grid Points',
 print(prediction)
 
 # Kriging ---------------------------------------------------------------------
-# Make new SPDF with only the data I need:
+# Krige Type 1:
+th234_total_kriged <- autoKrige(th234 ~ th234_total@coords[,1] + th234_total@coords[,2] + th234_total@coords[,3],
+                                th234_total,
+                                th234_pacific_1,
+                                block = 0,
+                                model = c("Sph", "Exp", "Gau", "Ste"),
+                                kappa = c(0.05, seq(0.2, 2, 0.1), 5, 10),
+                                fix.values = c(NA,NA,NA),
+                                remove_duplicates = TRUE,
+                                verbose = FALSE,
+                                GLS.model = NA)
 
-
-# Krige:
-# th234_total_kriged <- autoKrige(th234 ~ th234_pacific@coords[,1] + th234_pacific@coords[,2] + th234_pacific@coords[,3], 
-#                                 th234_pacific, 
-#                                 pacific_234th, 
-#                                 block = 30, 
-#                                 model = c("Sph", "Exp", "Gau", "Ste"), 
-#                                 kappa = c(0.05, seq(0.2, 2, 0.1), 5, 10), 
-#                                 fix.values = c(NA,NA,NA), 
-#                                 remove_duplicates = TRUE, 
-#                                 verbose = FALSE, 
-#                                 GLS.model = NA)
-
-th234_total_kriged <- krige(th234 ~ th234_pacific@coords[,1] + th234_pacific@coords[,2] + th234_pacific@coords[,3], 
-                            th234_pacific, 
-                            pacific_234th, 
-                            model = th234.fit$var_model, 
-                            nmax = 30)
+# Krige Type 2:
+th234_total_kriged <- krige(th234 ~ th234_total@coords[,1] + th234_total@coords[,2] + th234_total@coords[,3],
+                            th234_total,
+                            pacific_234th,
+                            model = th234.fit$var_model,
+                            nmax = 0)
 
 
