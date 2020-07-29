@@ -28,6 +28,8 @@ suppressPackageStartupMessages({
   library(magrittr)
   library(gridExtra)
   library(plotly)
+  library(leaflet)
+  library(mapview)
 })
 
 # Data Wrangling --------------------------------------------------------------
@@ -49,7 +51,6 @@ options(max.print=999999)
 # (4) Lat: TT043 station lat of , changed to nd
 # (5) Lon: #VALUE replaced with nd
 # (6) TotTh234 and uncert totth234: #DIV/0! replaced with nd
-# QUESTION: Uranium has X-Y values... how to deal with 
 
 # Import all data from Excel:
 th234_data_all <- read_excel("data/th234_data_220720.xlsx", 
@@ -122,7 +123,13 @@ dev.off()
 # Variogram -------------------------------------------------------------------
 # Convert to SPDF:
 coordinates(th234_pacific) <- ~ lat_decimal_degrees + lon_decimal_degrees + depth_m # c("lat_decimal_degrees", "lon_decimal_degrees", "depth_m")
-  
+
+# As (lon,lat), use WGS84 long-lat projection:
+proj4string(th234_pacific) <- CRS("+init=epsg:4326")
+
+# View the stations:
+mapview(th234_pacific)
+
 # Calculate variogram:
 th234 <- th234_pacific$`total_234Th(dpm/L)`
 th234.vgm <- variogram(th234 ~ lat_decimal_degrees + lon_decimal_degrees + depth_m, th234_pacific) # in a regression, y = ax + b. y is the response vector and x is the regressor (independent variable).
@@ -260,7 +267,7 @@ for (i in 1:dim(pts@coords)[1]) {
 }
 
 # Make into a SPDF:
-data = data.frame(ID = 1:(k-1))
+data = data.frame(ID = 1:dim(pacific)[1])
 th234_pacific_1 <- SpatialPoints(pacific)
 pacific_234th <- SpatialPointsDataFrame(th234_pacific_1, data)
 
