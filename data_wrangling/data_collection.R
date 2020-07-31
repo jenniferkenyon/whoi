@@ -234,10 +234,8 @@ pacific_3 <- data.frame(Serial_Number = cgodb$`SR#`, # serial number from above
                         U_dpm_L = cgodb$`238U(dpm/L)`, # 238uranium measurements
                         Th_tot_dpm_L = cgodb$`total_234Th(dpm/L)` , # 234thorium measurements
                         Th_tot_1SD_dpm_L =  cgodb$uncert_total234Th , # 234thorium uncertainty measurements
-                        POC_Th_tot_umol_dpm = cgodb$`POC/Th_small(umol/dpm)` + 
-                                              cgodb$`POC/Th_large(umol/dpm)`, # POC/234Th measurements
-                        POC_Th_tot_1SD_umol_dpm = cgodb$`uncert_POC/Th_small` + 
-                                                  cgodb$`uncert_POC/Th_large` # POC/234Th uncertainty measurements
+                        POC_Th_tot_umol_dpm = cgodb$`POC/Th_large(umol/dpm)`, # POC/234Th measurements. Only use large. 
+                        POC_Th_tot_1SD_umol_dpm = cgodb$`uncert_POC/Th_large` # POC/234Th uncertainty measurements
 )
 
 ############################# Compiling all data ##############################
@@ -279,7 +277,7 @@ th234_data <- data.frame(Serial_Number = serialnumber,
 )
 
 # Turn into a SPDF:
-coordinates(th234_data) = ~ Latitude + Longitude + Depth
+coordinates(th234_data) = ~ Longitude + Latitude + Depth
 
 # Remove misc:
 rm(latitude, 
@@ -302,7 +300,7 @@ u238_data <- data.frame(Serial_Number = serialnumber,
 )
 
 # Turn into a SPDF:
-coordinates(u238_data) = ~ Latitude + Longitude + Depth
+coordinates(u238_data) = ~ Longitude + Latitude + Depth
 
 # Remove misc:
 rm(latitude, 
@@ -325,7 +323,7 @@ ratio_data <- data.frame(Serial_Number = serialnumber,
 )
 
 # Turn into a SPDF:
-coordinates(ratio_data) = ~ Latitude + Longitude + Depth
+coordinates(ratio_data) = ~ Longitude + Latitude + Depth
 
 # Remove misc:
 rm(latitude, 

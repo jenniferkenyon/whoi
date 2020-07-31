@@ -2,7 +2,7 @@
 #                            Krige: Prediction Grid
 #------------------------------------------------------------------------------
 #                   Perrin Davidson | University of Chicago
-###############################################################################
+############################################################################### << make sure (x,y) is (lon, lat)
 # Libraries -------------------------------------------------------------------
 # Open libraries:
 suppressPackageStartupMessages({
@@ -125,6 +125,13 @@ colnames(prediction_grid@coords) <- c("Longitude","Latitude","Depth")
 # Use GPS, world-wide reference projection:
 proj4string(prediction_grid) <- CRS("+init=epsg:4326")
 
+# Save to excel:
+if (printing == 1) {
+  write_xlsx(as.data.frame(prediction_grid), 
+             "data/output/krige/prediction_grid.xlsx" 
+  )
+}
+
 # Remove misc:
 rm(i,j,k,
    watercolumn,
@@ -200,13 +207,21 @@ if (printing == 1) {
 # Plot queuing vs data points -------------------------------------------------
 # Load 234Th data:
 th234_data <- read_excel("data/output/excel/th234_data.xlsx")
+u238_data <- read_excel("data/output/excel/u238_data.xlsx")
+ratio_data <- read_excel("data/output/excel/ratio_data.xlsx")
 
 # Shift over the pacific:
 th234_data$Longitude <- ifelse(th234_data$Longitude < -25, 
                                th234_data$Longitude + 360, 
                                th234_data$Longitude)
+u238_data$Longitude <- ifelse(u238_data$Longitude < -25, 
+                              u238_data$Longitude + 360, 
+                              u238_data$Longitude)
+ratio_data$Longitude <- ifelse(ratio_data$Longitude < -25, 
+                               ratio_data$Longitude + 360, 
+                               ratio_data$Longitude)
 
-# Plot:
+# Plot 234Th and Prediction Grid:
 ggPoints <- ggplot() +
   geom_polygon(data = world,
                aes(x = long,
@@ -215,24 +230,22 @@ ggPoints <- ggplot() +
   geom_point(data = interp_points,
              aes(x = Longitude,
                  y = Latitude,
-                 fill = 'Interpolation Points'),
+                 color = 'Interpolation Points'),
              size = 0.75,
              stroke = 0,
-             shape = 16,
-             color='red') +
+             shape = 16) +
   geom_point(data = th234_data,
              aes(x = Longitude,
                  y = Latitude,
-                 fill = 'New Th-234 Stations'),
+                 color = '234Th Data Points'),
              size = 1,
              stroke = 0,
-             shape = 16,
-             color='lightblue') +
+             shape = 16) +
   coord_fixed(1.3) +
-  labs(title='Prediction Grid and Th-234 Stations',
+  labs(title='Prediction Grid and 234Th Data Points',
        x = "Longitude",
        y = "Latitude",
-       fill = "") +
+       color = "") +
   theme(plot.title=element_text(size=10, face="bold"),
         axis.text.x=element_text(size=10),
         axis.text.y=element_text(size=10),
@@ -240,7 +253,89 @@ ggPoints <- ggplot() +
         axis.title.y=element_text(size=10, face="bold"))
 print(ggPoints)
 if (printing == 1) {
-  ggsave('figures/kriging/interpolation_prediction.pdf',
+  ggsave('figures/kriging/interpolation_prediction_234th.pdf',
+         width = 7,
+         height = 3,
+         dpi = 300)
+}
+
+# Remove grid:
+rm(ggPoints)
+
+# Plot 238U and Prediction Grid:
+ggPoints <- ggplot() +
+  geom_polygon(data = world,
+               aes(x = long,
+                   y = lat,
+                   group = group)) +
+  geom_point(data = interp_points,
+             aes(x = Longitude,
+                 y = Latitude,
+                 color = 'Interpolation Points'),
+             size = 0.75,
+             stroke = 0,
+             shape = 16) +
+  geom_point(data = u238_data,
+             aes(x = Longitude,
+                 y = Latitude,
+                 color = '238U Data Points'),
+             size = 1,
+             stroke = 0,
+             shape = 16) +
+  coord_fixed(1.3) +
+  labs(title='Prediction Grid and 238U Data Points',
+       x = "Longitude",
+       y = "Latitude",
+       color = "") +
+  theme(plot.title=element_text(size=10, face="bold"),
+        axis.text.x=element_text(size=10),
+        axis.text.y=element_text(size=10),
+        axis.title.x=element_text(size=10, face="bold"),
+        axis.title.y=element_text(size=10, face="bold"))
+print(ggPoints)
+if (printing == 1) {
+  ggsave('figures/kriging/interpolation_prediction_238u.pdf',
+         width = 7,
+         height = 3,
+         dpi = 300)
+}
+
+# Remove grid:
+rm(ggPoints)
+
+# Plot Ratio and Prediction Grid:
+ggPoints <- ggplot() +
+  geom_polygon(data = world,
+               aes(x = long,
+                   y = lat,
+                   group = group)) +
+  geom_point(data = interp_points,
+             aes(x = Longitude,
+                 y = Latitude,
+                 color = 'Interpolation Points'),
+             size = 0.75,
+             stroke = 0,
+             shape = 16) +
+  geom_point(data = ratio_data,
+             aes(x = Longitude,
+                 y = Latitude,
+                 color = 'POC/234Th Data Points'),
+             size = 1,
+             stroke = 0,
+             shape = 16) +
+  coord_fixed(1.3) +
+  labs(title='Prediction Grid and POC/234Th Data Points',
+       x = "Longitude",
+       y = "Latitude",
+       color = "") +
+  theme(plot.title=element_text(size=10, face="bold"),
+        axis.text.x=element_text(size=10),
+        axis.text.y=element_text(size=10),
+        axis.title.x=element_text(size=10, face="bold"),
+        axis.title.y=element_text(size=10, face="bold"))
+print(ggPoints)
+if (printing == 1) {
+  ggsave('figures/kriging/interpolation_prediction_ratio.pdf',
          width = 7,
          height = 3,
          dpi = 300)
@@ -260,7 +355,8 @@ print(prediction)
 
 # Remove misc:
 rm(region_points,
-   longhurst)
+   longhurst,
+   printing)
 
 ###############################################################################
 #                                  End Program

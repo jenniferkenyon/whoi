@@ -22,15 +22,15 @@ u238_data <- read_excel("data/output/excel/u238_data.xlsx")
 ratio_data <- read_excel("data/output/excel/ratio_data.xlsx")
 
 # Make SPDFs ------------------------------------------------------------------
-coordinates(pacific_data) <- ~ Latitude + Longitude + Depth
-coordinates(th234_data) <- ~ Latitude + Longitude + Depth
-coordinates(u238_data) <- ~ Latitude + Longitude + Depth
-coordinates(ratio_data) <- ~ Latitude + Longitude + Depth
+coordinates(pacific_data) <- ~ Longitude + Latitude + Depth
+coordinates(th234_data) <- ~ Longitude + Latitude + Depth
+coordinates(u238_data) <- ~ Longitude + Latitude + Depth
+coordinates(ratio_data) <- ~ Longitude + Latitude + Depth
 
 ############################## Plot all Stations ##############################
 # Create points:
-all_locations <- data.frame(Latitude = pacific_data@coords[,1], 
-                            Longitude = pacific_data@coords[,2])
+all_locations <- data.frame(Longitude = pacific_data@coords[,1],
+                            Latitude = pacific_data@coords[,2])
 
 # Shift to be over the Pacific:
 all_locations$Longitude <- ifelse(all_locations$Longitude < -25, 
@@ -81,8 +81,8 @@ if (printing == 1) {
 
 ######################## Plot Usable 234Th Stations ###########################
 # Create points:
-usable_locations <- data.frame(Latitude = th234_data@coords[,1], 
-                               Longitude = th234_data@coords[,2])
+usable_locations <- data.frame(Longitude = th234_data@coords[,1], 
+                               Latitude = th234_data@coords[,2])
 
 # Shift to be over the Pacific:
 usable_locations$Longitude <- ifelse(usable_locations$Longitude < -25, 
@@ -133,10 +133,10 @@ if (printing == 1) {
 
 ############### Plot all locations vs usable 234Th Stations ###################
 # Create points:
-all_locations <- data.frame(Latitude = pacific_data@coords[,1], 
-                            Longitude = pacific_data@coords[,2])
-usable_locations <- data.frame(Latitude = th234_data@coords[,1], 
-                               Longitude = th234_data@coords[,2])
+all_locations <- data.frame(Longitude = pacific_data@coords[,1], 
+                            Latitude = pacific_data@coords[,2])
+usable_locations <- data.frame(Longitude = th234_data@coords[,1], 
+                               Latitude = th234_data@coords[,2])
 
 # Shift to be over the Pacific:
 all_locations$Longitude <- ifelse(all_locations$Longitude < -25, 
@@ -199,8 +199,8 @@ if (printing == 1) {
 
 ############################## Plot 238U Stations #############################
 # Create points:
-usable_locations <- data.frame(Latitude = u238_data@coords[,1], 
-                               Longitude = u238_data@coords[,2])
+usable_locations <- data.frame(Longitude = u238_data@coords[,1], 
+                               Latitude = u238_data@coords[,2])
 
 # Shift to be over the Pacific:
 usable_locations$Longitude <- ifelse(usable_locations$Longitude < -25, 
@@ -253,10 +253,10 @@ if (printing == 1) {
 
 ##################### Plot Usable and All 238U Stations #######################
 # Create points:
-all_locations <- data.frame(Latitude = pacific_data@coords[,1], 
-                            Longitude = pacific_data@coords[,2])
-usable_locations <- data.frame(Latitude = u238_data@coords[,1], 
-                               Longitude = u238_data@coords[,2])
+all_locations <- data.frame(Longitude = pacific_data@coords[,1], 
+                            Latitude = pacific_data@coords[,2])
+usable_locations <- data.frame(Longitude = u238_data@coords[,1], 
+                               Latitude = u238_data@coords[,2])
 
 # Shift to be over the Pacific:
 all_locations$Longitude <- ifelse(all_locations$Longitude < -25, 
@@ -319,8 +319,8 @@ if (printing == 1) {
 
 ############################## Plot Ratio Stations ############################
 # Create points:
-all_locations <- data.frame(Latitude = pacific_data@coords[,1], 
-                            Longitude = pacific_data@coords[,2])
+all_locations <- data.frame(Longitude = pacific_data@coords[,1], 
+                            Latitude = pacific_data@coords[,2])
 
 
 # Shift to be over the Pacific:
@@ -373,10 +373,10 @@ if (printing == 1) {
 
 ################## Plot Usable and All POC/234Th Stations #####################
 # Create points:
-all_locations <- data.frame(Latitude = pacific_data@coords[,1], 
-                            Longitude = pacific_data@coords[,2])
-usable_locations <- data.frame(Latitude = ratio_data@coords[,1], 
-                               Longitude = ratio_data@coords[,2])
+all_locations <- data.frame(Longitude = pacific_data@coords[,1], 
+                            Latitude = pacific_data@coords[,2])
+usable_locations <- data.frame(Longitude = ratio_data@coords[,1], 
+                               Latitude = ratio_data@coords[,2])
 
 # Shift to be over the Pacific:
 all_locations$Longitude <- ifelse(all_locations$Longitude < -25, 
@@ -440,12 +440,12 @@ if (printing == 1) {
 
 #################### 234Th, 238U, and POC/234Th Stations ######################
 # Create points:
-usable_locations_th <- data.frame(Latitude = th234_data@coords[,1], 
-                                  Longitude = th234_data@coords[,2])
-usable_locations_u <- data.frame(Latitude = u238_data@coords[,1], 
-                                 Longitude = u238_data@coords[,2])
-usable_locations_ratio <- data.frame(Latitude = ratio_data@coords[,1], 
-                                     Longitude = ratio_data@coords[,2])
+usable_locations_th <- data.frame(Longitude = th234_data@coords[,1], 
+                                  Latitude = th234_data@coords[,2])
+usable_locations_u <- data.frame(Longitude = u238_data@coords[,1], 
+                                 Latitude = u238_data@coords[,2])
+usable_locations_ratio <- data.frame(Longitude = ratio_data@coords[,1], 
+                                     Latitude = ratio_data@coords[,2])
 
 # Shift to be over the Pacific:
 usable_locations_th$Longitude <- ifelse(usable_locations_th$Longitude < -25, 
@@ -518,14 +518,14 @@ if (printing == 1) {
 
 ############################### All Stations ##################################
 # Create points:
-usable_locations_th <- data.frame(Latitude = th234_data@coords[,1], 
-                                  Longitude = th234_data@coords[,2])
-usable_locations_u <- data.frame(Latitude = u238_data@coords[,1], 
-                                 Longitude = u238_data@coords[,2])
-usable_locations_ratio <- data.frame(Latitude = ratio_data@coords[,1], 
-                                     Longitude = ratio_data@coords[,2])
-all_locations <- data.frame(Latitude = pacific_data@coords[,1], 
-                            Longitude = pacific_data@coords[,2])
+usable_locations_th <- data.frame(Longitude = th234_data@coords[,1], 
+                                  Latitude = th234_data@coords[,2])
+usable_locations_u <- data.frame(Longitude = u238_data@coords[,1], 
+                                 Latitude = u238_data@coords[,2])
+usable_locations_ratio <- data.frame(Longitude = ratio_data@coords[,1], 
+                                     Latitude = ratio_data@coords[,2])
+all_locations <- data.frame(Longitude = pacific_data@coords[,1], 
+                            Latitude = pacific_data@coords[,2])
 
 # Shift to be over the Pacific:
 usable_locations_th$Longitude <- ifelse(usable_locations_th$Longitude < -25, 

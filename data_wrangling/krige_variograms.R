@@ -16,42 +16,37 @@ suppressPackageStartupMessages({
 })
 
 # Do you want to plot? --------------------------------------------------------
-plotting = 0
+plotting = 1
 
 ############################### 234Th Variogram ###############################
 # Read in data  ---------------------------------------------------------------
 th234_data <- read_excel("data/output/excel/th234_data.xlsx")
 
 # Make SPDFs ------------------------------------------------------------------
-coordinates(th234_data) <- ~ Latitude + Longitude + Depth
+coordinates(th234_data) <- ~ Longitude + Latitude + Depth
 
 # As (lon,lat), use GPS, the most common spatial reference system for the entire world:
 proj4string(th234_data) <- CRS("+init=epsg:4326")
 
-# Calculate variogram:
+# Calculate variogram: np = number of points in lag (distance between two points), dist = ave. distance between points in the lag, gamma = mean of lag
 th234 <- th234_data$Th_total_dpm_L
-th234.vgm <- variogram(th234 ~ Latitude + Longitude + Depth, th234_data) # in a regression, y = ax + b. y is the response vector and x is the regressor (independent variable).
+th234.vgm <- variogram(th234 ~ 1, # start with simple kriging (Z(s) = \mu + \epsilon(s)) with \mu the regressor and \epsilon the response vector (residuals)
+                       data = th234_data) # in a regression, y = ax + b. y is the response vector and x is the regressor (independent variable).
 
 # Fit a model to variogram:
-th234.fit <- autofitVariogram(th234 ~ Latitude + Longitude + Depth,
-                              th234_data,
-                              model = c("Sph", 
-                                        "Exp", 
-                                        "Gau", 
-                                        "Ste", 
-                                        "Mat"),
-                              kappa = c(0.05, 
-                                        seq(0.2, 2, 0.1), 
-                                        5, 
-                                        10),
-                              fix.values = c(NA, NA, NA),
-                              verbose = TRUE,
-                              GLS.model = NA,
-                              start_vals = c(NA,NA,NA))
+th234.fit <- fit.variogram(th234.vgm, 
+                           model = vgm(c("Sph",
+                                         "Exp",
+                                         "Gau",
+                                         "Ste",
+                                         "Mat"
+                                         )
+                                       )
+                           )
 
 # Plot model and variogram:
 plot(th234.vgm, 
-     th234.fit$var_model, 
+     th234.fit, 
      main = "234Th Fitted variogram",
      ylab = "Semivariance",
      xlab = "Distance"
@@ -61,40 +56,128 @@ if (plotting == 1) {
   dev.off()
 }
 
+# Check for anistrophy --------------------------------------------------------
+# Great a gstat object:
+anistrophy <- gstat(id = "Th234",
+                    formula = th234 ~ Longitude + Latitude + Depth,
+                    data = th234_data)
+
+# Create a variogram:
+variogram_anis <- variogram(anistrophy, # gstat object
+                            map =TRUE,
+                            cutoff = 4000, # cutoff distance between points put into lags
+                            width = 150) # distance between points in the lag
+
+# Plot:
+plot(variogram_anis,
+     theshold = 10)
+if (plotting == 1) {
+  dev.copy(pdf, 'figures/th234_tot/234th_anistrophy.pdf')
+  dev.off()
+}
+
+# This graph shows that there is not much autocorrelation, however there is more in the W-E/E-W direction than any other.
+# Let's fit a variogram to this, using degrees of 70, 80, 90, 100, 110, and 120 from North/y-axis:
+th234_variogram <- variogram(anistrophy,
+                             alpha = c(70,80,90,100,110,120))
+
+# Create a new model:
+th234.vgm2 <- vgm(model = "Sph",
+                  anis = c(90, 0, 0, 0.5, 1)
+                 )
+
+# Fit this new model:
+th234.fit2 <- fit.variogram(th234_variogram,
+                            model = th234.vgm2)
+
+# Plot new model:
+plot(th234_variogram,
+     model = th234.fit2,
+     as.table = TRUE
+    )
+if (plotting == 1) {
+  dev.copy(pdf, 'figures/th234_tot/234th_new_fitting.pdf')
+  dev.off()
+}
+
+rm(th234_variogram,
+   th234.fit,
+   th234.fit2,
+   th234.vgm,
+   th234.vgm2,
+   variogram_anis,
+   anistrophy)
+
+# Thus, I will update our model with alpha = 90 and anis = c(90, 0, 0, 0.5, 1):
+# Variogram:
+th234.vgm <- variogram(th234 ~ 1, # same result as with ~ Longitude + Latitude + Depth
+                       data = th234_data,
+                       alpha = 90)
+
+# Fit:
+th234.fit <- fit.variogram(th234.vgm, 
+                           model = vgm(c("Sph",
+                                         "Exp",
+                                         "Gau",
+                                         "Ste",
+                                         "Mat"
+                                         )
+                                      )
+                              )
+
+# Plot new model:
+plot(th234.vgm,
+     model = th234.fit
+    )
+if (plotting == 1) {
+  dev.copy(pdf, 'figures/th234_tot/234th_final_fitting.pdf')
+  dev.off()
+}
+
+# Save as excel:
+if (plotting == 1) {
+  write_xlsx(th234.fit, 
+             "data/output/krige/th234_fit.xlsx" 
+  )
+  write_xlsx(th234.vgm, 
+             "data/output/krige/th234_vgm.xlsx" 
+  )
+}
+
+# Remove misc:
+rm(th234_data,
+   th234,
+   th234.vgm)
+
 ############################### 238U Variogram ################################
 # Read in data  ---------------------------------------------------------------
 u238_data <- read_excel("data/output/excel/u238_data.xlsx")
 
 # Make SPDFs ------------------------------------------------------------------
-coordinates(u238_data) <- ~ Latitude + Longitude + Depth
+coordinates(u238_data) <- ~ Longitude + Latitude + Depth
 
 # As (lon,lat), use GPS, the most common spatial reference system for the entire world:
 proj4string(u238_data) <- CRS("+init=epsg:4326")
 
 # Calculate variogram:
 u238 <- u238_data$U_dpm_L
-u238.vgm <- variogram(u238 ~ Latitude + Longitude + Depth, u238_data) # in a regression, y = ax + b. y is the response vector and x is the regressor (independent variable).
+u238.vgm <- variogram(u238 ~ 1, 
+                      u238_data) # in a regression, y = ax + b. y is the response vector and x is the regressor (independent variable).
 
 # Fit a model to variogram:
-u238.fit <- autofitVariogram(u238 ~ Latitude + Longitude + Depth,
-                              u238_data,
-                              model = c("Sph", 
+u238.fit <- fit.variogram(u238.vgm, 
+                          model = vgm(c("Sph", 
                                         "Exp", 
                                         "Gau", 
                                         "Ste", 
-                                        "Mat"),
-                              kappa = c(0.05, 
-                                        seq(0.2, 2, 0.1), 
-                                        5, 
-                                        10),
-                              fix.values = c(NA, NA, NA),
-                              verbose = TRUE,
-                              GLS.model = NA,
-                              start_vals = c(NA,NA,NA))
+                                        "Mat"
+                                        )
+                                      )
+                          )
 
 # Plot model and variogram:
 plot(u238.vgm, 
-     u238.fit$var_model, 
+     u238.fit, 
      main = "238U Fitted variogram",
      ylab = "Semivariance",
      xlab = "Distance"
@@ -104,40 +187,128 @@ if (plotting == 1) {
   dev.off()
 }
 
+# Check for anistrophy --------------------------------------------------------
+# Great a gstat object:
+anistrophy <- gstat(id = "",
+                    formula = th234 ~ Longitude + Latitude + Depth,
+                    data = th234_data)
+
+# Create a variogram:
+variogram_anis <- variogram(anistrophy, # gstat object
+                            map =TRUE,
+                            cutoff = 4000, # cutoff distance between points put into lags
+                            width = 150) # distance between points in the lag
+
+# Plot:
+plot(variogram_anis,
+     theshold = 10)
+if (plotting == 1) {
+  dev.copy(pdf, 'figures/th234_tot/234th_anistrophy.pdf')
+  dev.off()
+}
+
+# This graph shows that there is not much autocorrelation, however there is more in the W-E/E-W direction than any other.
+# Let's fit a variogram to this, using degrees of 70, 80, 90, 100, 110, and 120 from North/y-axis:
+th234_variogram <- variogram(anistrophy,
+                             alpha = c(70,80,90,100,110,120))
+
+# Create a new model:
+th234.vgm2 <- vgm(model = "Sph",
+                  anis = c(90, 0, 0, 0.5, 1)
+)
+
+# Fit this new model:
+th234.fit2 <- fit.variogram(th234_variogram,
+                            model = th234.vgm2)
+
+# Plot new model:
+plot(th234_variogram,
+     model = th234.fit2,
+     as.table = TRUE
+)
+if (plotting == 1) {
+  dev.copy(pdf, 'figures/th234_tot/234th_new_fitting.pdf')
+  dev.off()
+}
+
+rm(th234_variogram,
+   th234.fit,
+   th234.fit2,
+   th234.vgm,
+   th234.vgm2,
+   variogram_anis,
+   anistrophy)
+
+# Thus, I will update our model with alpha = 90 and anis = c(90, 0, 0, 0.5, 1):
+# Variogram:
+th234.vgm <- variogram(th234 ~ 1, # same result as with ~ Longitude + Latitude + Depth
+                       data = th234_data,
+                       alpha = 90)
+
+# Fit:
+th234.fit <- fit.variogram(th234.vgm, 
+                           model = vgm(c("Sph",
+                                         "Exp",
+                                         "Gau",
+                                         "Ste",
+                                         "Mat"
+                           )
+                           )
+)
+
+# Plot new model:
+plot(th234.vgm,
+     model = th234.fit
+)
+if (plotting == 1) {
+  dev.copy(pdf, 'figures/th234_tot/234th_final_fitting.pdf')
+  dev.off()
+}
+
+# Save as excel:
+if (plotting == 1) {
+  write_xlsx(th234.fit, 
+             "data/output/krige/th234_fit.xlsx" 
+  )
+  write_xlsx(th234.vgm, 
+             "data/output/krige/th234_vgm.xlsx" 
+  )
+}
+
+# Remove misc:
+rm(th234_data,
+   th234,
+   th234.vgm)
+
 ######################### POC/234Th Ratio Variogram ###########################
 # Read in data  ---------------------------------------------------------------
 ratio_data <- read_excel("data/output/excel/ratio_data.xlsx")
 
 # Make SPDFs ------------------------------------------------------------------
-coordinates(ratio_data) <- ~ Latitude + Longitude + Depth
+coordinates(ratio_data) <- ~ Longitude + Latitude + Depth
 
 # As (lon,lat), use GPS, the most common spatial reference system for the entire world:
 proj4string(ratio_data) <- CRS("+init=epsg:4326")
 
 # Calculate variogram:
 ratio <- ratio_data$POC_Th_tot_umol_dpm
-ratio.vgm <- variogram(ratio ~ Latitude + Longitude + Depth, ratio_data) # in a regression, y = ax + b. y is the response vector and x is the regressor (independent variable).
+ratio.vgm <- variogram(ratio ~ Longitude + Latitude + Depth, 
+                       ratio_data) # in a regression, y = ax + b. y is the response vector and x is the regressor (independent variable).
 
 # Fit a model to variogram:
-ratio.fit <- autofitVariogram(ratio ~ Latitude + Longitude + Depth,
-                              ratio_data,
-                             model = c("Sph", 
-                                       "Exp", 
-                                       "Gau", 
-                                       "Ste", 
-                                       "Mat"),
-                             kappa = c(0.05, 
-                                       seq(0.2, 2, 0.1), 
-                                       5, 
-                                       10),
-                             fix.values = c(NA, NA, NA),
-                             verbose = TRUE,
-                             GLS.model = NA,
-                             start_vals = c(NA,NA,NA))
+ratio.fit <- fit.variogram(ratio.vgm, 
+                           model = vgm(c("Sph", 
+                                         "Exp", 
+                                         "Gau", 
+                                         "Ste", 
+                                         "Mat"
+                          )
+                          )
+)
 
 # Plot model and variogram:
 plot(ratio.vgm, 
-     ratio.fit$var_model, 
+     ratio.fit, 
      main = "POC/234Th Fitted variogram",
      ylab = "Semivariance",
      xlab = "Distance"
