@@ -25,8 +25,8 @@ th234_data <- read_excel("data/output/excel/th234_data.xlsx")
 # Make SPDFs ------------------------------------------------------------------
 coordinates(th234_data) <- ~ Latitude + Longitude + Depth
 
-# As (lon,lat), use Web Mercater this is the most common spatial reference system for the entire world:
-proj4string(th234_data) <- CRS("+init=epsg:3857")
+# As (lon,lat), use GPS, the most common spatial reference system for the entire world:
+proj4string(th234_data) <- CRS("+init=epsg:4326")
 
 # Calculate variogram:
 th234 <- th234_data$Th_total_dpm_L
@@ -68,8 +68,8 @@ u238_data <- read_excel("data/output/excel/u238_data.xlsx")
 # Make SPDFs ------------------------------------------------------------------
 coordinates(u238_data) <- ~ Latitude + Longitude + Depth
 
-# As (lon,lat), use Web Mercater this is the most common spatial reference system for the entire world:
-proj4string(u238_data) <- CRS("+init=epsg:3857")
+# As (lon,lat), use GPS, the most common spatial reference system for the entire world:
+proj4string(u238_data) <- CRS("+init=epsg:4326")
 
 # Calculate variogram:
 u238 <- u238_data$U_dpm_L
@@ -111,8 +111,8 @@ ratio_data <- read_excel("data/output/excel/ratio_data.xlsx")
 # Make SPDFs ------------------------------------------------------------------
 coordinates(ratio_data) <- ~ Latitude + Longitude + Depth
 
-# As (lon,lat), use Web Mercater this is the most common spatial reference system for the entire world:
-proj4string(ratio_data) <- CRS("+init=epsg:3857")
+# As (lon,lat), use GPS, the most common spatial reference system for the entire world:
+proj4string(ratio_data) <- CRS("+init=epsg:4326")
 
 # Calculate variogram:
 ratio <- ratio_data$POC_Th_tot_umol_dpm

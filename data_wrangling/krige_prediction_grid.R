@@ -5,13 +5,20 @@
 ###############################################################################
 # Libraries -------------------------------------------------------------------
 # Open libraries:
-library(readxl) # reading Excel data
-library(rgdal) # for shape file reading
-library(sp) # spatial library
-library(maps) # for map data
-library(ggplot2) # for plotting
-library(maptools) # for map plotting
-library(gstat) # for geographical statistics
+suppressPackageStartupMessages({
+  library(readxl) # reading Excel data
+  library(rgdal) # for shape file reading
+  library(sp) # spatial library
+  library(maps) # for map data
+  library(ggplot2) # for plotting
+  library(maptools) # for map plotting
+  library(gstat) # for geographical statistics,
+  library(gstat) # for geographical statistics
+  library(plotly) # 3D function
+})
+
+# Do you want to print? -------------------------------------------------------
+printing = 1
 
 ###################### Prediction Grid - Longhurst ############################
 # Shape files are from: https://www.marineregions.org/downloads.php
@@ -52,9 +59,19 @@ regions <- rbind(regions, pnec)
 regions <- rbind(regions, peqd)
 regions <- rbind(regions, spsg)
 regions <- rbind(regions, chil)
+ 
+############################## Generate Points ###############################
+# Generate points ever 2.8 degrees -------------------------------------------
+# Can be done with: 
+points <- spsample(regions, cellsize=c(2.8,2.8), type="regular")
 
-# As (lon,lat), use Web Mercater this is the most common spatial reference system for the entire world:
-regions <- spTransform(regions, CRS("+init=epsg:3857"))
+# WARNING: In proj4string(obj) : CRS object has comment, which is lost in output. Should not affect output. 
+
+# Rename:
+colnames(points@coords) <- c("Longitude","Latitude") 
+
+# As (lon,lat), use GPS, the most common spatial reference system for the entire world:
+interp_grid <- spTransform(points, CRS("+init=epsg:4326"))
 
 # Remove misc:
 rm(alsk,
@@ -67,194 +84,183 @@ rm(alsk,
    pnec,
    psae,
    spsg,
-   oceans)
+   oceans,
+   points)
 
-# Generate points ever 2.8 degrees -------------------------------------------
-# Can be done with: 
-points <- spsample(regions, cellsize=c(2.8,2.8), type="regular")
+# Make depth bins:
+watercolumn = array(dim=34)
+for (i in 1:34) {
+  if (i <= 30) {
+    watercolumn[i] = i*10
+  }
+  else {
+    watercolumn[i] = 300 + (i-30)*50
+  }
+}
 
-# Print out grid points:
-write_xlsx(as.data.frame(points), 
-           "data/output/krige/prediction_grid.xlsx" 
-)
+# Combine into one array:
+x <- interp_grid@coords[,1]
+y <- interp_grid@coords[,2]
+z <- watercolumn
+pacific <- matrix(ncol = 3, 
+                  nrow = dim(interp_grid@coords)[1]*length(watercolumn))
+k = 1
+for (i in 1:dim(interp_grid@coords)[1]) {
+  for (j in 1:length(watercolumn)) {
+    pacific[k,1] <- x[i]
+    pacific[k,2] <- y[i]
+    pacific[k,3] <- watercolumn[j]
+    k = k + 1
+  }
+}
 
-# # Get grid max and min values:
-# values <- regions@bbox # has max and min bounding variables of polygon
-# longitude_length <- as.integer((values[1,2] - values[1,1]) + 1.5)
-# latitude_length <- as.integer((values[2,2] - values[2,1]) + 1.5)
-# 
-# # Define resolution:
-# grid_res <- 2.8 # 2.8 degree resolution
-# 
-# # Define number of cells in each dimension:
-# gridsizeX <- longitude_length/grid_res
-# gridsizeY <- latitude_length/grid_res
-# 
-# # Make grid:
-# prediction_grid <- GridTopology(values[,1], # the cell center
-#                                 c(grid_res, grid_res), # cellsize
-#                                 c(gridsizeX, gridsizeY) # number of cells in the X and Y dimensions
-# )
-# 
-# # Make SPDF:
-# points <- SpatialPoints(coordinates(prediction_grid))
-# points1 <- SpatialPointsDataFrame(as.data.frame(points))
-# data <- as.data.frame(rep(1,
-#                           nrow(as.data.frame(points))))
-# 
-# # Overlay provinces on prediction grid:
-# Overlay = overlay(points1,
-#                   regions)
-# points1$regions <- Overlay
-# 
-# # Specify grid:
-# interp_grid <- na.exclude(as.data.frame(points1))
-# 
-# # Remove misc:
-# rm(grid_res,
-#    gridsizeX,
-#    gridsizeY,
-#    latitude_length,
-#    longitude_length,
-#    values
-# )
+# Make into a SPDF:
+data = data.frame(ID = 1:dim(pacific)[1])
+th234_pacific <- SpatialPoints(pacific)
+prediction_grid <- SpatialPointsDataFrame(th234_pacific, data)
 
-# # Plot pacific regions --------------------------------------------------------
-# # Associate data with the polygons each represents (the numbers all the way to the left originally):
-# regions@data$id <- rownames(regions@data)
-# region_points <- fortify(regions, region = "id") # make a data.frame from an SPDF sorted by each polygon (a total of 9 here)
-# longhurst <- merge(region_points, regions@data, by = "id") # merge all these into one long data.frame with coordinates and polygon information
-# 
-# # Associate data with points:
-# interp_points <- data.frame(Latitude = points@coords[,2], Longitude = points@coords[,1])
-# 
-# # Make the plot:
-# ggRegions <- ggplot() +
-#   geom_polygon(data = world, 
-#                aes(x = long, 
-#                    y = lat, 
-#                    group = group)) + 
-#   geom_polygon(data = longhurst, 
-#                aes(x=long, 
-#                    y=lat, 
-#                    group = group, 
-#                    fill = 'Longhurst Regions')) + 
-#   # geom_point(data = interp_points, 
-#   #            aes(x=Longitude,
-#   #                y=Latitude, 
-#   #                fill = 'Interpolation Points'), 
-#   #            size = 0.75, 
-#   #            stroke = 0, 
-#   #            shape = 16, 
-#   #            color='red') +
-#   coord_fixed(1.3) + 
-#   labs(title='Interpolation Region', 
-#        x = "Longitude", 
-#        y = "Latitude", 
-#        fill = "") + 
-#   theme(plot.title=element_text(size=10, face="bold"), 
-#         axis.text.x=element_text(size=10), 
-#         axis.text.y=element_text(size=10),
-#         axis.title.x=element_text(size=10, face="bold"),
-#         axis.title.y=element_text(size=10, face="bold")) 
-# print(ggRegions)
-# if (plotting == 1) {
-#   ggsave('figures/kriging/interpolation_region.pdf', 
-#          width = 7, 
-#          height = 3, 
-#          dpi = 300)
-# }
-# 
-# # Plot queuing vs data points:
-# ggPoints <- ggplot() + 
-#   geom_polygon(data = world, 
-#                aes(x = long, 
-#                    y = lat, 
-#                    group = group)) + 
-#   geom_point(data = interp_points, 
-#              aes(x=Longitude, 
-#                  y=Latitude, 
-#                  fill = 'Interpolation Points'), 
-#              size = 0.75, 
-#              stroke = 0, 
-#              shape = 16, 
-#              color='red') +
-#   geom_point(data = th234_locations_new, 
-#              aes(x = LON, 
-#                  y = LAT, 
-#                  fill = 'New Th-234 Stations'), 
-#              size = 1, 
-#              stroke = 0, 
-#              shape = 16, 
-#              color='lightblue') + 
-#   coord_fixed(1.3) + 
-#   labs(title='Prediction Grid and Th-234 Stations', 
-#        x = "Longitude", 
-#        y = "Latitude", 
-#        fill = "") + 
-#   theme(plot.title=element_text(size=10, face="bold"), 
-#         axis.text.x=element_text(size=10), 
-#         axis.text.y=element_text(size=10),
-#         axis.title.x=element_text(size=10, face="bold"),
-#         axis.title.y=element_text(size=10, face="bold")) 
-# print(ggPoints)
-# if (plotting == 1) {
-#   ggsave('figures/kriging/interpolation_prediction.pdf', 
-#          width = 7, 
-#          height = 3, 
-#          dpi = 300)
-# }
-# 
-# # Remove misc:
-# rm(region_points,
-#    longhurst)
-# 
-# # Make prediction grid --------------------------------------------------------
-# # Make depth bins:
-# watercolumn = array(dim=34)
-# for (i in 1:34) {
-#   if (i <= 30) {
-#     watercolumn[i] = i*10
-#   }
-#   else {
-#     watercolumn[i] = 300 + (i-30)*50
-#   }
-# }
-# 
-# # Combine into one array:
-# x <- pts@coords[,1]
-# y <- pts@coords[,2]
-# z <- watercolumn
-# pacific <- matrix(ncol = 3, nrow = dim(pts@coords)[1]*length(watercolumn))
-# k = 1
-# for (i in 1:dim(pts@coords)[1]) {
-#   for (j in 1:length(watercolumn)) {
-#     pacific[k,1] <- x[i]
-#     pacific[k,2] <- y[i]
-#     pacific[k,3] <- watercolumn[j]
-#     k = k + 1
-#   }
-# }
-# 
-# # Make into a SPDF:
-# data = data.frame(ID = 1:dim(pacific)[1])
-# th234_pacific_1 <- SpatialPoints(pacific)
-# pacific_234th <- SpatialPointsDataFrame(th234_pacific_1, data)
-# 
-# # Use GPS, world-wide reference projection:
-# proj4string(pacific_234th) <- CRS("+init=epsg:3857")
-# 
-# # Plot Prediction Points:
-# prediction <- plot_ly(x=pacific_234th@coords[,2], 
-#                       y=pacific_234th@coords[,1], 
-#                       z=-pacific_234th@coords[,3], 
-#                       type='scatter3d', 
-#                       mode="markers", 
-#                       color=pacific_234th@coords[,3])
-# prediction <- prediction %>% layout(title = 'Prediction Grid Points',
-#                                     xaxis = list(title = 'Longitude'), 
-#                                     yaxis = list(title = 'Latitude'))
-# print(prediction)
+# Rename:
+colnames(prediction_grid@coords) <- c("Longitude","Latitude","Depth") 
+
+# Use GPS, world-wide reference projection:
+proj4string(prediction_grid) <- CRS("+init=epsg:4326")
+
+# Remove misc:
+rm(i,j,k,
+   watercolumn,
+   x,y,z,
+   th234_pacific,
+   pacific,
+   data)
+
+########################### Plot Points and Regions ###########################
+# Associate data with the polygons each represents (the numbers all the way to the left originally):
+regions@data$id <- rownames(regions@data)
+region_points <- fortify(regions, region = "id") # make a data.frame from an SPDF sorted by each polygon (a total of 9 here)
+longhurst <- merge(region_points, regions@data, by = "id") # merge all these into one long data.frame with coordinates and polygon information
+
+# Associate data with points:
+interp_points <- data.frame(Latitude = interp_grid@coords[,2], Longitude = interp_grid@coords[,1])
+
+# Shift to over the pacific:
+interp_points$Longitude <- ifelse(interp_points$Longitude < -25, 
+                                  interp_points$Longitude + 360, 
+                                  interp_points$Longitude)
+longhurst$long <- ifelse(longhurst$long < -25, 
+                         longhurst$long + 360, 
+                         longhurst$long)
+
+# Make world data -------------------------------------------------------------
+world <- map_data('world', wrap=c(-25,335), ylim=c(-55,75)) 
+
+# Make the plot:
+ggRegions <- ggplot() +
+  geom_polygon(data = world,
+               aes(x = long,
+                   y = lat,
+                   group = group)) +
+  geom_polygon(data = longhurst,
+               aes(x = long,
+                   y = lat,
+                   group = group,
+                   fill = 'Longhurst Regions')) +
+  geom_point(data = interp_points,
+             aes(x = Longitude,
+                 y = Latitude,
+                 fill = 'Interpolation Points'),
+             size = 0.75,
+             stroke = 0,
+             shape = 16,
+             color='red') +
+  coord_fixed(1.3) +
+  labs(title='Interpolation Region',
+       x = "Longitude",
+       y = "Latitude",
+       fill = "") +
+  theme(plot.title=element_text(size=10, face="bold"),
+        axis.text.x=element_text(size=10),
+        axis.text.y=element_text(size=10),
+        axis.title.x=element_text(size=10, face="bold"),
+        axis.title.y=element_text(size=10, face="bold")) +
+  scale_x_continuous(breaks=seq(0,360,30),
+                     labels=c(0,30,60,90,
+                              120,150,180,
+                              -150,-120,-90,
+                              -60,-30,0))
+print(ggRegions)
+
+# Printing:
+if (printing == 1) {
+  ggsave('figures/kriging/interpolation_region.pdf', 
+         width = 7, 
+         height = 3, 
+         dpi = 300)
+}
+
+# Plot queuing vs data points -------------------------------------------------
+# Load 234Th data:
+th234_data <- read_excel("data/output/excel/th234_data.xlsx")
+
+# Shift over the pacific:
+th234_data$Longitude <- ifelse(th234_data$Longitude < -25, 
+                               th234_data$Longitude + 360, 
+                               th234_data$Longitude)
+
+# Plot:
+ggPoints <- ggplot() +
+  geom_polygon(data = world,
+               aes(x = long,
+                   y = lat,
+                   group = group)) +
+  geom_point(data = interp_points,
+             aes(x = Longitude,
+                 y = Latitude,
+                 fill = 'Interpolation Points'),
+             size = 0.75,
+             stroke = 0,
+             shape = 16,
+             color='red') +
+  geom_point(data = th234_data,
+             aes(x = Longitude,
+                 y = Latitude,
+                 fill = 'New Th-234 Stations'),
+             size = 1,
+             stroke = 0,
+             shape = 16,
+             color='lightblue') +
+  coord_fixed(1.3) +
+  labs(title='Prediction Grid and Th-234 Stations',
+       x = "Longitude",
+       y = "Latitude",
+       fill = "") +
+  theme(plot.title=element_text(size=10, face="bold"),
+        axis.text.x=element_text(size=10),
+        axis.text.y=element_text(size=10),
+        axis.title.x=element_text(size=10, face="bold"),
+        axis.title.y=element_text(size=10, face="bold"))
+print(ggPoints)
+if (printing == 1) {
+  ggsave('figures/kriging/interpolation_prediction.pdf',
+         width = 7,
+         height = 3,
+         dpi = 300)
+}
+
+# Plot Prediction Points  --------------------------------------------------------
+prediction <- plot_ly(x=prediction_grid@coords[,2],
+                      y=prediction_grid@coords[,1],
+                      z=-prediction_grid@coords[,3],
+                      type='scatter3d',
+                      mode="markers",
+                      color=prediction_grid@coords[,3])
+prediction <- prediction %>% layout(title = 'Prediction Grid Points',
+                                    xaxis = list(title = 'Longitude'),
+                                    yaxis = list(title = 'Latitude'))
+print(prediction)
+
+# Remove misc:
+rm(region_points,
+   longhurst)
 
 ###############################################################################
 #                                  End Program
