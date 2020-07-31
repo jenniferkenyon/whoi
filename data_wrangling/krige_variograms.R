@@ -1,5 +1,5 @@
 ###############################################################################
-#                                  Krige: Variogams 
+#                                  Krige: Variograms 
 #------------------------------------------------------------------------------
 #                   Perrin Davidson | University of Chicago
 ###############################################################################
@@ -11,8 +11,12 @@ suppressPackageStartupMessages({
   library(maps) # for map data
   library(ggplot2) # for plotting
   library(maptools) # for map plotting
+  library(automap) # variogram fitting
   library(gstat) # for geographical statistics
 })
+
+# Do you want to plot? --------------------------------------------------------
+plotting = 0
 
 ############################### 234Th Variogram ###############################
 # Read in data  ---------------------------------------------------------------
@@ -142,6 +146,9 @@ if (plotting == 1) {
   dev.copy(pdf, 'figures/ratio/poc_234th_fitted_variogram.pdf')
   dev.off()
 }
+
+# Remove misc:
+rm(plotting)
 
 ###############################################################################
 #                                  End Program

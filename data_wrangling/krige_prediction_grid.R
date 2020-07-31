@@ -4,15 +4,14 @@
 #                   Perrin Davidson | University of Chicago
 ###############################################################################
 # Libraries -------------------------------------------------------------------
-suppressPackageStartupMessages({
-  library(readxl) # reading Excel data
-  library(rgdal) # for shape file reading
-  library(sp) # spatial library
-  library(maps) # for map data
-  library(ggplot2) # for plotting
-  library(maptools) # for map plotting
-  library(gstat) # for geographical statistics
-})
+# Open libraries:
+library(readxl) # reading Excel data
+library(rgdal) # for shape file reading
+library(sp) # spatial library
+library(maps) # for map data
+library(ggplot2) # for plotting
+library(maptools) # for map plotting
+library(gstat) # for geographical statistics
 
 ###################### Prediction Grid - Longhurst ############################
 # Shape files are from: https://www.marineregions.org/downloads.php
