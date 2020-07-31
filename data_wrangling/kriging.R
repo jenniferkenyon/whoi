@@ -10,6 +10,8 @@ suppressPackageStartupMessages({
   library(sp) # spatial library
   library(maps) # for map data
   library(ggplot2) # for plotting
+  library(maptools) # for map plotting
+  library(gstat) # for geographical statistics
 })
 
 ###################### Prediction Grid - Longhurst ############################
@@ -69,16 +71,56 @@ rm(alsk,
    oceans)
 
 # Generate points ever 2.8 degrees -------------------------------------------
-points <- spsample(regions, cellsize=c(2.8,2.8), type="regular")
+# Can be done with: points <- spsample(regions, cellsize=c(2.8,2.8), type="regular")
+# Get grid max and min values:
+values <- regions@bbox # has max and min bounding variavles of polygon
+longitude_length <- as.integer((values[1,2] - values[1,1]) + 1.5)
+latitude_length <- as.integer((values[2,2] - values[2,1]) + 1.5)
+
+# Define resolution:
+grid_res <- 2.8 # 2.8 degree resolution
+
+# Define number of cells in each dimension:
+gridsizeX <- longitude_length/grid_res
+gridsizeY <- latitude_length/grid_res
+
+# Make grid:
+prediction_grid <- GridTopology(values[,1], # the cell center
+                                c(grid_res, grid_res), # cellsize
+                                c(gridsizeX, gridsizeY) # number of cells in the X and Y dimensions
+                                )
+
+# Make SPDF:
+points <- SpatialPoints(coordinates(prediction_grid))
+points1 <- SpatialPointsDataFrame(as.data.frame(points))
+data <- as.data.frame(rep(1,
+                          nrow(as.data.frame(points))))
+
+# Overlay provinces on prediction grid:
+Overlay = overlay(points1,
+                  regions)
+points1$regions <- Overlay
+
+# Specify grid:
+interp_grid <- na.exclude(as.data.frame(points1))
+
+# Remove misc:
+rm(grid_res,
+   gridsizeX,
+   gridsizeY,
+   latitude_length,
+   longitude_length,
+   values
+)
 
 # Plot pacific regions --------------------------------------------------------
 # Associate data with the polygons each represents (the numbers all the way to the left originally):
 regions@data$id <- rownames(regions@data)
 region_points <- fortify(regions, region = "id") # make a data.frame from an SPDF sorted by each polygon (a total of 9 here)
-longhurst_df <- merge(region_points, regions@data, by = "id") # merge all these into one long data.frame with coordinates and polygon information
+longhurst <- merge(region_points, regions@data, by = "id") # merge all these into one long data.frame with coordinates and polygon information
 
 # Associate data with points:
-interp_points <- data.frame(LAT = points@coords[,2], LON = points@coords[,1])
+interp_points <- data.frame(Latitude = points@coords[,2], Longitude = points@coords[,1])
 
 # Make the plot:
 ggRegions <- ggplot() +
@@ -86,19 +128,19 @@ ggRegions <- ggplot() +
                aes(x = long, 
                    y = lat, 
                    group = group)) + 
-  geom_polygon(data = longhurst_df, 
+  geom_polygon(data = longhurst, 
                aes(x=long, 
                    y=lat, 
                    group = group, 
                    fill = 'Longhurst Regions')) + 
-  geom_point(data = interp_points, 
-             aes(x=LON,
-                 y=LAT, 
-                 fill = 'Interpolation Points'), 
-             size = 0.75, 
-             stroke = 0, 
-             shape = 16, 
-             color='red') +
+  # geom_point(data = interp_points, 
+  #            aes(x=Longitude,
+  #                y=Latitude, 
+  #                fill = 'Interpolation Points'), 
+  #            size = 0.75, 
+  #            stroke = 0, 
+  #            shape = 16, 
+  #            color='red') +
   coord_fixed(1.3) + 
   labs(title='Interpolation Region', 
        x = "Longitude", 
@@ -124,8 +166,8 @@ ggPoints <- ggplot() +
                    y = lat, 
                    group = group)) + 
   geom_point(data = interp_points, 
-             aes(x=LON, 
-                 y=LAT, 
+             aes(x=Longitude, 
+                 y=Latitude, 
                  fill = 'Interpolation Points'), 
              size = 0.75, 
              stroke = 0, 
@@ -156,6 +198,10 @@ if (plotting == 1) {
          height = 3, 
          dpi = 300)
 }
+
+# Remove misc:
+rm(region_points,
+   longhurst)
 
 # Make prediction grid --------------------------------------------------------
 # Make depth bins:
@@ -203,6 +249,135 @@ prediction <- prediction %>% layout(title = 'Prediction Grid Points',
                                     xaxis = list(title = 'Longitude'), 
                                     yaxis = list(title = 'Latitude'))
 print(prediction)
+
+############################### 234Th Variogram ###############################
+# Read in data  ---------------------------------------------------------------
+th234_data <- read_excel("data/output/excel/th234_data.xlsx")
+
+# Make SPDFs ------------------------------------------------------------------
+coordinates(th234_data) <- ~ Latitude + Longitude + Depth
+
+# As (lon,lat), use Web Mercater this is the most common spatial reference system for the entire world:
+proj4string(th234_data) <- CRS("+init=epsg:3857")
+
+# Calculate variogram:
+th234 <- th234_data$Th_total_dpm_L
+th234.vgm <- variogram(th234 ~ Latitude + Longitude + Depth, th234_data) # in a regression, y = ax + b. y is the response vector and x is the regressor (independent variable).
+
+# Fit a model to variogram:
+th234.fit <- autofitVariogram(th234 ~ Latitude + Longitude + Depth,
+                              th234_data,
+                              model = c("Sph", 
+                                        "Exp", 
+                                        "Gau", 
+                                        "Ste", 
+                                        "Mat"),
+                              kappa = c(0.05, 
+                                        seq(0.2, 2, 0.1), 
+                                        5, 
+                                        10),
+                              fix.values = c(NA, NA, NA),
+                              verbose = TRUE,
+                              GLS.model = NA,
+                              start_vals = c(NA,NA,NA))
+
+# Plot model and variogram:
+plot(th234.vgm, 
+     th234.fit$var_model, 
+     main = "234Th Fitted variogram",
+     ylab = "Semivariance",
+     xlab = "Distance"
+)
+if (plotting == 1) {
+  dev.copy(pdf, 'figures/th234_tot/234th_fitted_variogram.pdf')
+  dev.off()
+}
+
+############################### 238U Variogram ################################
+# Read in data  ---------------------------------------------------------------
+u238_data <- read_excel("data/output/excel/u238_data.xlsx")
+
+# Make SPDFs ------------------------------------------------------------------
+coordinates(u238_data) <- ~ Latitude + Longitude + Depth
+
+# As (lon,lat), use Web Mercater this is the most common spatial reference system for the entire world:
+proj4string(u238_data) <- CRS("+init=epsg:3857")
+
+# Calculate variogram:
+u238 <- u238_data$U_dpm_L
+u238.vgm <- variogram(u238 ~ Latitude + Longitude + Depth, u238_data) # in a regression, y = ax + b. y is the response vector and x is the regressor (independent variable).
+
+# Fit a model to variogram:
+u238.fit <- autofitVariogram(u238 ~ Latitude + Longitude + Depth,
+                              u238_data,
+                              model = c("Sph", 
+                                        "Exp", 
+                                        "Gau", 
+                                        "Ste", 
+                                        "Mat"),
+                              kappa = c(0.05, 
+                                        seq(0.2, 2, 0.1), 
+                                        5, 
+                                        10),
+                              fix.values = c(NA, NA, NA),
+                              verbose = TRUE,
+                              GLS.model = NA,
+                              start_vals = c(NA,NA,NA))
+
+# Plot model and variogram:
+plot(u238.vgm, 
+     u238.fit$var_model, 
+     main = "238U Fitted variogram",
+     ylab = "Semivariance",
+     xlab = "Distance"
+)
+if (plotting == 1) {
+  dev.copy(pdf, 'figures/u238/u238_fitted_variogram.pdf')
+  dev.off()
+}
+
+######################### POC/234Th Ratio Variogram ###########################
+# Read in data  ---------------------------------------------------------------
+ratio_data <- read_excel("data/output/excel/ratio_data.xlsx")
+
+# Make SPDFs ------------------------------------------------------------------
+coordinates(ratio_data) <- ~ Latitude + Longitude + Depth
+
+# As (lon,lat), use Web Mercater this is the most common spatial reference system for the entire world:
+proj4string(ratio_data) <- CRS("+init=epsg:3857")
+
+# Calculate variogram:
+ratio <- ratio_data$POC_Th_tot_umol_dpm
+ratio.vgm <- variogram(ratio ~ Latitude + Longitude + Depth, ratio_data) # in a regression, y = ax + b. y is the response vector and x is the regressor (independent variable).
+
+# Fit a model to variogram:
+ratio.fit <- autofitVariogram(ratio ~ Latitude + Longitude + Depth,
+                              ratio_data,
+                             model = c("Sph", 
+                                       "Exp", 
+                                       "Gau", 
+                                       "Ste", 
+                                       "Mat"),
+                             kappa = c(0.05, 
+                                       seq(0.2, 2, 0.1), 
+                                       5, 
+                                       10),
+                             fix.values = c(NA, NA, NA),
+                             verbose = TRUE,
+                             GLS.model = NA,
+                             start_vals = c(NA,NA,NA))
+
+# Plot model and variogram:
+plot(ratio.vgm, 
+     ratio.fit$var_model, 
+     main = "POC/234Th Fitted variogram",
+     ylab = "Semivariance",
+     xlab = "Distance"
+)
+if (plotting == 1) {
+  dev.copy(pdf, 'figures/ratio/poc_234th_fitted_variogram.pdf')
+  dev.off()
+}
 
 ###############################################################################
 #                                  End Program
