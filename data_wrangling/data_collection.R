@@ -8,10 +8,14 @@ suppressPackageStartupMessages({
   library(readxl) # reading Excel data
   library(writexl) # writing Excel data
   library(sp) # creating spatial data
-  library(rgdal) # writing shapefiles 
+  library(raster) # writing shapefiles 
 })
 
 ############################### EXPORTS DATA ##################################
+# Printing options ------------------------------------------------------------
+# 1 means yes. 0 means no:
+printing = 1
+
 # Import data -----------------------------------------------------------------
 # Read in from excel:
 import <- read_excel("data/input/exports_v6.xlsx", # path
@@ -30,9 +34,8 @@ end <- dim(exports)[1]
 
 # Give serial number of form X_Y: X = data set, Y = cell within data set:
 # 1 = EXPORTS data
-# 2 = GP15 RR1814 data
-# 3 = GP15 RR1815 data 
-# 4 = CGODB (Comprehensive Global Oceanic Database of 234Th Data) data
+# 2 = GP15 data
+# 3 = CGODB (Comprehensive Global Oceanic Database of 234Th Data) data
 
 j = 1
 i = 1
@@ -43,7 +46,9 @@ for (i in 1:end) {
 }
 
 # Remove misc:
-rm(end, i, j)
+rm(end, 
+   i, 
+   j)
 
 # Collect data into one array -------------------------------------------------
 pacific_1 <- data.frame(Serial_Number = exports$`SR#`, # serial number from above
@@ -57,89 +62,47 @@ pacific_1 <- data.frame(Serial_Number = exports$`SR#`, # serial number from abov
                         POC_Th_tot_1SD_umol_dpm =  exports$`st dev` # POC/234Th uncertainty measurements
 )
 
-############################## GP15 DATA RR1814 ###############################
+################################### GP15 DATA #################################
 # Import data -----------------------------------------------------------------
 # Read in from excel:
-import <- read_excel("data/input/gp15_RR1814.xlsx", # path
+import <- read_excel("data/input/gp15.xlsx", # path
                      na = "") # NA type
 
 # Turn into a data_frame:
-gp15_RR1814 <- as.data.frame(import)
+gp15 <- as.data.frame(import)
 
 # Remove import:
 rm(import)
 
 # Give serial numbers ---------------------------------------------------------
 # Find end of array:
-end <- dim(gp15_RR1814)[1]
+end <- dim(gp15)[1]
 
 # Give serial number of form X_Y: X = data set, Y = cell within data set:
 j = 2
 i = 1
 for (i in 1:end) {
-  gp15_RR1814$`SR#`[i] <- paste0(j, # data base
-                                "_",
-                                i) # cell number
+  gp15$`SR#`[i] <- paste0(j, # data base
+                          "_",
+                          i) # cell number
 }
 
 # Remove end:
-rm(end, i, j)
+rm(end, 
+   i, 
+   j)
 
 # Collect data into one array -------------------------------------------------
-convert <- 0.06 # for converting mBq/kg to dpm/L
-pacific_2 <- data.frame(Serial_Number = gp15_RR1814$`SR#`, # serial number from above
-                        Latitude = gp15_RR1814$`Start Latitude`, # latitude
-                        Longitude = gp15_RR1814$`Start Longitude`, # longitude
-                        Depth = gp15_RR1814$Depth_m, # depth of measurement
-                        U_dpm_L = '', # 234uranium measurements
-                        Th_tot_dpm_L = convert*gp15_RR1814$`Th_234_T_CONC_BOTTLE_mBq/kg`, # 234thorium measurements
-                        Th_tot_1SD_dpm_L =  convert*gp15_RR1814$`1SD_Th_234_T_CONC_BOTTLE_mBq/kg`, # 234thorium uncertainty measurements
-                        POC_Th_tot_umol_dpm = '', # POC/234Th measurements
-                        POC_Th_tot_1SD_umol_dpm = ''  # POC/234Th uncertainty measurements
+pacific_2 <- data.frame(Serial_Number = gp15$`SR#`, # serial number from above
+                        Latitude = gp15$lat_decimal_degrees, # latitude
+                        Longitude = gp15$lon_decimal_degrees, # longitude
+                        Depth = gp15$`depth(m)`, # depth of measurement
+                        U_dpm_L = gp15$`238U(dpm/L)`, # 238uranium measurements
+                        Th_tot_dpm_L = gp15$`total_234Th(dpm/L)`, # 234thorium measurements
+                        Th_tot_1SD_dpm_L =  gp15$uncert_total234Th, # 234thorium uncertainty measurements
+                        POC_Th_tot_umol_dpm = gp15$`POC/Th_large(umol/dpm)`,  # POC/234Th measurements
+                        POC_Th_tot_1SD_umol_dpm = gp15$`uncert_POC/Th_large` # POC/234Th uncertainty measurements
 )
-
-############################## GP15 DATA RR1815 ###############################
-# Import data -----------------------------------------------------------------
-# Read in from excel:
-import <- read_excel("data/input/gp15_RR1815.xlsx", # path
-                     na = "") # NA type
-
-# Turn into a data_frame:
-gp15_RR1815 <- as.data.frame(import)
-
-# Remove import:
-rm(import)
-
-# Give serial numbers ---------------------------------------------------------
-# Find end of array:
-end <- dim(gp15_RR1815)[1]
-
-# Give serial number of form X_Y: X = data set, Y = cell within data set:
-j = 3
-i = 1
-for (i in 1:end) {
-  gp15_RR1815$`SR#`[i] <- paste0(j, # data base
-                                       "_",
-                                       i) # cell number
-}
-
-# Remove end:
-rm(end, i, j)
-
-# Collect data into one array -------------------------------------------------
-pacific_3 <- data.frame(Serial_Number = gp15_RR1815$`SR#`, # serial number from above
-                        Latitude = gp15_RR1815$`Start Latitude`, # latitude
-                        Longitude = gp15_RR1815$`Start Longitude`, # longitude
-                        Depth = gp15_RR1815$Depth_m, # depth of measurement
-                        U_dpm_L = '', # 234uranium measurements
-                        Th_tot_dpm_L = convert*gp15_RR1815$`Th_234_T_CONC_BOTTLE_mBq/kg`, # 234thorium measurements
-                        Th_tot_1SD_dpm_L =  convert*gp15_RR1815$`1SD_Th_234_T_CONC_BOTTLE_mBq/kg`, # 234thorium uncertainty measurements
-                        POC_Th_tot_umol_dpm = '', # POC/234Th measurements
-                        POC_Th_tot_1SD_umol_dpm = ''  # POC/234Th uncertainty measurements
-)
-
-# Remove misc:
-rm(convert)
 
 ################################ CEBALLOS DATA ################################
 # Import data -----------------------------------------------------------------
@@ -161,7 +124,7 @@ rm(import)
 end <- dim(cgodb)[1]
 
 # Give serial number of form X_Y: X = data set, Y = cell within data set:
-j = 4
+j = 3
 i = 1
 for (i in 1:end) {
   cgodb$`SR#`[i] <- paste0(j, # data base
@@ -170,7 +133,9 @@ for (i in 1:end) {
 }
 
 # Remove end:
-rm(end, i, j)
+rm(end, 
+   i, 
+   j)
 
 # Import only Pacific Ocean data ----------------------------------------------
 cgodb <- cgodb[which(cgodb$Ocean == "Pacific Ocean"),]
@@ -181,7 +146,7 @@ cgodb <- rbind(cgodb,
 cgodb <- rbind(cgodb, 
                cgodb[which(cgodb$Ocean == "Atlantic Ocean & Pacific Ocean")])
 
-# Exclude Chinese and Japanese Seas -------------------------------------------
+# 234Th: Exclude Chinese and Japanese Seas ------------------------------------
 cgodb <- cgodb[-which(cgodb$Region == "South China Sea"), ]
 cgodb <- cgodb[-which(cgodb$Region == "Funka Bay"), ]
 cgodb <- cgodb[-which(cgodb$Region == "Funka Bay of Hokkaido, Japan"), ]
@@ -194,7 +159,19 @@ cgodb <- cgodb[-which(cgodb$Region == "Ulleung Basin of the East/Japan Sea"), ]
 cgodb <- cgodb[-which(cgodb$Region == "Western North Pacific"), ]
 cgodb <- cgodb[-which(cgodb$Cruise_ID_1 == "MR05-04"), ]
 cgodb <- cgodb[-which(cgodb$Project_Name == "Carbon Cycling in the China Seas: Budget, Controls and Ocean Acidification (CHOICE-C)"), ]
-cgodb <- cgodb[-which(cgodb$Region ==  "Central North Pacific: Manzanillo (Mexico) and Hawaii"), ]
+cgodb <- cgodb[-which(cgodb$Region == "Central North Pacific: Manzanillo (Mexico) and Hawaii"), ]
+cgodb <- cgodb[-which(cgodb$Project_Name == "CAR-TTT project (CARbon Transfer, Transport and Transformation)"), ]
+cgodb <- cgodb[-which(cgodb$Cruise_ID_1 == "No.300"), ]
+
+# 238U: Exclude China Seas ----------------------------------------------------
+cgodb <- cgodb[-which(cgodb$Cruise_ID_1 == "cruise #784"), ]
+
+# Ratio: Exclude China Seas ----------------------------------------------------
+cgodb <- cgodb[-which(cgodb$Region == "upwelling region off northeast Taiwan (station U) and the northwest oligotrophic Pacific Ocean (stations P1–P4)"), ]
+
+# 234Th: Exclude Atlantic Ocean -----------------------------------------------
+cgodb <- cgodb[-which(cgodb$station_ID == "UPW1"), ]
+cgodb <- cgodb[-which(cgodb$Cruise_ID_2 == "86-1"), ]
 
 # Make 234Th_total data from 234Th_diss + 234Th_part_small + 234Th_part_large:
 unknown <- which(is.na(cgodb$`total_234Th(dpm/L)`) == TRUE)
@@ -250,7 +227,7 @@ change_238u <- unknown_before - unknown_after
 rm(unknown, unknown_before, unknown_after, i, change_238u)
 
 # Collect data into one array -------------------------------------------------
-pacific_4 <- data.frame(Serial_Number = cgodb$`SR#`, # serial number from above
+pacific_3 <- data.frame(Serial_Number = cgodb$`SR#`, # serial number from above
                         Latitude = cgodb$lat_decimal_degrees, # latitude
                         Longitude = cgodb$lon_decimal_degrees, # longitude
                         Depth = cgodb$`depth(m)`, # depth of measurement
@@ -267,12 +244,13 @@ pacific_4 <- data.frame(Serial_Number = cgodb$`SR#`, # serial number from above
 # Bind together:
 pacific_data <- rbind(pacific_1,
                       pacific_2, 
-                      pacific_3, 
-                      pacific_4
+                      pacific_3
 )
 
 # Remove misc:
-rm(pacific_1, pacific_2, pacific_3, pacific_4)
+rm(pacific_1, 
+   pacific_2, 
+   pacific_3)
 
 ############################ Data Quality Control #############################
 # Remove NAs from coordninate data:
@@ -292,7 +270,9 @@ if (length(which(pacific_data$Th_tot_dpm_L > 10)) > 0 ) {
 latitude <- th234$Latitude
 longitude <- th234$Longitude
 depth <- th234$Depth
-th234_data <- data.frame(Latitude = latitude, 
+serialnumber <- th234$Serial_Number
+th234_data <- data.frame(Serial_Number = serialnumber,
+                         Latitude = latitude, 
                          Longitude = longitude, 
                          Depth = depth, 
                          Th_total_dpm_L = th234$Th_tot_dpm_L
@@ -302,14 +282,20 @@ th234_data <- data.frame(Latitude = latitude,
 coordinates(th234_data) = ~ Latitude + Longitude + Depth
 
 # Remove misc:
-rm(latitude, longitude, depth, th234)
+rm(latitude, 
+   longitude, 
+   depth,
+   serialnumber,
+   th234)
 
 # 238U ------------------------------------------------------------------------
 u238 <- pacific_data[-which(is.na(pacific_data$U_dpm_L)), ] # 238U
 latitude <- u238$Latitude
 longitude <- u238$Longitude
 depth <- u238$Depth
-u238_data <- data.frame(Latitude = latitude, 
+serialnumber <- u238$Serial_Number
+u238_data <- data.frame(Serial_Number = serialnumber,
+                        Latitude = latitude, 
                         Longitude = longitude, 
                         Depth = depth, 
                         U_dpm_L = u238$U_dpm_L
@@ -319,14 +305,20 @@ u238_data <- data.frame(Latitude = latitude,
 coordinates(u238_data) = ~ Latitude + Longitude + Depth
 
 # Remove misc:
-rm(latitude, longitude, depth, u238)
+rm(latitude, 
+   longitude, 
+   depth, 
+   serialnumber,
+   u238)
 
 # POC/234Th -------------------------------------------------------------------
 ratio <- pacific_data[-which(is.na(pacific_data$POC_Th_tot_umol_dpm)), ] # POC/234Th ratio
 latitude <- ratio$Latitude
 longitude <- ratio$Longitude
 depth <- ratio$Depth
-ratio_data <- data.frame(Latitude = latitude, 
+serialnumber <- ratio$Serial_Number
+ratio_data <- data.frame(Serial_Number = serialnumber,
+                         Latitude = latitude, 
                          Longitude = longitude, 
                          Depth = depth, 
                          POC_Th_tot_umol_dpm = ratio$POC_Th_tot_umol_dpm
@@ -336,56 +328,40 @@ ratio_data <- data.frame(Latitude = latitude,
 coordinates(ratio_data) = ~ Latitude + Longitude + Depth
 
 # Remove misc:
-rm(latitude, longitude, depth, ratio)
+rm(latitude, 
+   longitude, 
+   depth, 
+   serialnumber,
+   ratio)
 
 ############################## Writing all data ###############################
 # Write all data to .xlsx files:
-write_xlsx(cgodb, 
-           "data/output/excel/cgodb.xlsx" 
-)
-write_xlsx(exports, 
-           "data/output/excel/exports.xlsx" 
-)
-write_xlsx(gp15_RR1814, 
-           "data/output/excel/gp15_RR1814.xlsx" 
-)
-write_xlsx(gp15_RR1815, 
-           "data/output/excel/gp15_RR1815.xlsx" 
-)
-write_xlsx(as.data.frame(pacific_data), 
-           "data/output/excel/pacific_data.xlsx" 
-)
-write_xlsx(as.data.frame(th234_data), 
-           "data/output/excel/th234_data.xlsx" 
-)
-write_xlsx(as.data.frame(u238_data), 
-           "data/output/excel/u238_data.xlsx" 
-)
-write_xlsx(as.data.frame(ratio_data), 
-           "data/output/excel/ratio_data.xlsx" 
-)
+if (printing == 1) {
+  write_xlsx(cgodb, 
+             "data/output/excel/cgodb.xlsx" 
+  )
+  write_xlsx(exports, 
+             "data/output/excel/exports.xlsx" 
+  )
+  write_xlsx(gp15, 
+             "data/output/excel/gp15.xlsx" 
+  )
+  write_xlsx(as.data.frame(pacific_data), 
+             "data/output/excel/pacific_data.xlsx" 
+  )
+  write_xlsx(as.data.frame(th234_data), 
+             "data/output/excel/th234_data.xlsx" 
+  )
+  write_xlsx(as.data.frame(u238_data), 
+             "data/output/excel/u238_data.xlsx" 
+  )
+  write_xlsx(as.data.frame(ratio_data), 
+             "data/output/excel/ratio_data.xlsx" 
+  )
+}
 
-# Export SPDFs as shapefiles:
-writeOGR(obj = pacific_data, 
-         dsn = "data/output/pacific_data_shapefile", 
-         layer = "pacific_data_all", 
-         driver = "ESRI Shapefile"
-)
-writeOGR(obj = th234_data, 
-         dsn = "data/output/th234_data_shapefile", 
-         layer = "th234_data", 
-         driver = "ESRI Shapefile"
-)
-writeOGR(obj = u238_data, 
-         dsn = "data/output/u238_data_shapefile", 
-         layer = "u238_data", 
-         driver = "ESRI Shapefile"
-)
-writeOGR(obj = ratio_data, 
-         dsn = "data/output/ratio_data_shapefile", 
-         layer = "ratio_data", 
-         driver = "ESRI Shapefile"
-)
+# Get rid of last little bit:
+rm(printing)
 
 ###############################################################################
 #                                  End Program
