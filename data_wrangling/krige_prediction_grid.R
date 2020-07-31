@@ -7,6 +7,7 @@
 # Open libraries:
 suppressPackageStartupMessages({
   library(readxl) # reading Excel data
+  library(writexl) # writing Excel data
   library(rgdal) # for shape file reading
   library(sp) # spatial library
   library(maps) # for map data
